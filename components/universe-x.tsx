@@ -51,8 +51,23 @@ export default function UniverseX() {
 
   const handleStart = useCallback(async () => {
     setHasStarted(true)
-    await startTracking()
-  }, [startTracking])
+    // If the landmarker hasn't finished loading yet, startTracking will bail early.
+    // We also keep a ref so the auto-start effect below can fire once isReady flips.
+  }, [])
+
+  // Once hasStarted AND isReady, start camera+tracking.
+  // This handles the race where the user clicks before MediaPipe finishes loading.
+  const hasStartedRef = useRef(false)
+  useEffect(() => {
+    if (hasStarted) hasStartedRef.current = true
+  }, [hasStarted])
+
+  useEffect(() => {
+    if (isReady && hasStartedRef.current) {
+      startTracking()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady])
 
   const handlePlanetHover = useCallback((id: string | null) => {
     setSolarSystem((prev) => ({ ...prev, hoveredPlanet: id }))
@@ -229,13 +244,6 @@ export default function UniverseX() {
 
       {hasStarted && (
         <>
-          {/* Hidden video element for MediaPipe */}
-          <video
-            ref={videoRef}
-            className="absolute opacity-0 pointer-events-none"
-            style={{ width: 1, height: 1, zIndex: -1 }}
-          />
-
           {/* Top navigation */}
           <TopNav
             fps={fps}
