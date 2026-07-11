@@ -10,187 +10,119 @@ interface HUDProps {
   fps: number
 }
 
-const GESTURE_LABELS: Record<string, string> = {
-  none: 'None',
-  open_palm: 'Open Palm',
-  point: 'Point',
-  pinch: 'Pinch',
-  fist: 'Fist',
-  two_hand_pinch: 'Two-Hand Pinch',
-  rotate: 'Rotate',
-}
-
-const GESTURE_ACTIONS: Record<string, string> = {
-  none: 'Waiting...',
-  open_palm: 'Spawn Solar System',
-  point: 'Highlight Planet',
-  pinch: 'Grab Planet',
-  fist: 'Reset System',
-  two_hand_pinch: 'Resize System',
-  rotate: 'Rotate System',
-}
-
-function HUDRow({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-1.5">
-      <span className="text-[10px] font-mono tracking-wider text-gray-500 uppercase">{label}</span>
-      <span className={`text-[11px] font-mono font-medium ${highlight ? 'neon-cyan' : 'text-gray-300'}`}>
-        {value}
-      </span>
-    </div>
-  )
-}
-
-function GestureIndicator({ gesture }: { gesture: string }) {
-  const isActive = gesture !== 'none'
-  return (
-    <div className={`flex items-center gap-2 py-2 px-3 rounded-lg transition-all duration-300 ${
-      isActive ? 'bg-cyan-500/10 border border-cyan-500/20' : 'bg-transparent'
-    }`}>
-      <div className={`w-2 h-2 rounded-full transition-all duration-300 ${
-        isActive
-          ? 'bg-cyan-400 animate-pulse-glow'
-          : 'bg-gray-600'
-      }`} />
-      <div>
-        <div className={`text-xs font-bold font-mono transition-colors duration-300 ${
-          isActive ? 'text-cyan-300' : 'text-gray-500'
-        }`}>
-          {GESTURE_LABELS[gesture] ?? gesture}
-        </div>
-        <div className="text-[9px] text-gray-500 font-mono">
-          {GESTURE_ACTIONS[gesture] ?? ''}
-        </div>
-      </div>
-    </div>
-  )
+const GESTURE_DISPLAY: Record<string, { label: string; color: string }> = {
+  none:           { label: 'No gesture', color: '#555' },
+  open_palm:      { label: 'Open Palm',  color: '#00f5ff' },
+  point:          { label: 'Pointing',   color: '#4db8ff' },
+  fist:           { label: 'Fist',       color: '#ff9944' },
+  two_hand_scale: { label: 'Scale',      color: '#88aaff' },
 }
 
 export function HUD({ gesture, solarSystem, fps }: HUDProps) {
-  const selectedPlanetData = solarSystem.selectedPlanet
-    ? PLANETS.find((p) => p.id === solarSystem.selectedPlanet)
+  const g       = GESTURE_DISPLAY[gesture.gesture] ?? GESTURE_DISPLAY.none
+  const planet  = solarSystem.selectedPlanet
+    ? PLANETS.find(p => p.id === solarSystem.selectedPlanet) ?? null
     : null
-
-  const hoveredPlanetData = solarSystem.hoveredPlanet
-    ? PLANETS.find((p) => p.id === solarSystem.hoveredPlanet)
+  const hovered = solarSystem.hoveredPlanet
+    ? PLANETS.find(p => p.id === solarSystem.hoveredPlanet) ?? null
     : null
-
-  const displayPlanet = hoveredPlanetData ?? selectedPlanetData
+  const display = hovered ?? planet
+  const fpsColor = fps >= 50 ? '#00f5aa' : fps >= 30 ? '#ffcc00' : '#ff5555'
 
   return (
-    <motion.div
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
-      className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-end gap-3 pointer-events-none px-4"
-      style={{ maxWidth: 'calc(100vw - 48px)' }}
+    <div
+      className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-end gap-3 pointer-events-none"
+      style={{ maxWidth: 'calc(100vw - 32px)' }}
     >
-      {/* Left panel: Hand info */}
-      <div className="glass-bright rounded-2xl p-4 min-w-[200px]">
-        <div className="flex items-center gap-2 mb-3">
-          <div className={`w-2 h-2 rounded-full ${gesture.isTracking ? 'bg-cyan-400 animate-pulse-glow' : 'bg-gray-600'}`} />
-          <span className="text-[9px] font-mono tracking-[0.2em] text-gray-400 uppercase">
-            Hand Detection
-          </span>
+      {/* Left: Gesture status */}
+      <motion.div
+        initial={{ y: 60, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+        className="glass-bright rounded-2xl px-4 py-3 flex items-center gap-3 min-w-[160px]"
+      >
+        <div
+          className="flex-shrink-0 w-2.5 h-2.5 rounded-full transition-all duration-300"
+          style={{
+            backgroundColor: gesture.isTracking ? g.color : '#444',
+            boxShadow: gesture.isTracking ? `0 0 8px ${g.color}` : 'none',
+          }}
+        />
+        <div>
+          <div
+            className="text-xs font-mono font-semibold leading-tight transition-colors duration-200"
+            style={{ color: gesture.isTracking ? g.color : '#555' }}
+          >
+            {gesture.isTracking ? g.label : 'No hands'}
+          </div>
+          <div className="text-[9px] font-mono text-gray-600 mt-0.5">
+            {gesture.hands.length} hand{gesture.hands.length !== 1 ? 's' : ''} detected
+          </div>
         </div>
-
-        <GestureIndicator gesture={gesture.gesture} />
-
-        <div className="mt-2 border-t border-white/5 pt-2 space-y-0">
-          <HUDRow
-            label="Hands"
-            value={`${gesture.hands.length} detected`}
-            highlight={gesture.hands.length > 0}
-          />
-          <HUDRow
-            label="Quality"
-            value={gesture.isTracking ? `${Math.round(gesture.trackingQuality * 100)}%` : '—'}
-            highlight={gesture.trackingQuality > 0.8}
-          />
-          <HUDRow
-            label="FPS"
-            value={`${fps}`}
-            highlight={fps >= 50}
-          />
+        <div className="ml-auto pl-3 border-l border-white/10">
+          <div className="text-[10px] font-mono font-bold" style={{ color: fpsColor }}>{fps}</div>
+          <div className="text-[8px] font-mono text-gray-600">fps</div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Center: System status */}
-      <div className="glass-bright rounded-2xl p-4 min-w-[180px] text-center">
-        <div className="mb-2">
-          <div className="text-[9px] font-mono tracking-[0.2em] text-gray-400 uppercase mb-1">
-            Solar System
-          </div>
-          <div className={`text-xs font-bold font-mono ${
-            solarSystem.isSpawned ? 'neon-cyan' : 'text-gray-500'
-          }`}>
-            {solarSystem.isSpawning ? 'SPAWNING...' : solarSystem.isSpawned ? 'ACTIVE' : 'STANDBY'}
-          </div>
+      <motion.div
+        initial={{ y: 60, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
+        className="glass-bright rounded-2xl px-5 py-3 text-center min-w-[160px]"
+      >
+        <div className="text-[8px] font-mono tracking-[0.3em] text-gray-500 uppercase mb-1">Solar System</div>
+        <div
+          className="text-sm font-bold font-mono tracking-wider"
+          style={{
+            color: solarSystem.isSpawned ? '#00f5ff' : '#444',
+            textShadow: solarSystem.isSpawned ? '0 0 12px rgba(0,245,255,0.6)' : 'none',
+          }}
+        >
+          {solarSystem.isSpawning ? 'SPAWNING...' : solarSystem.isSpawned ? 'ACTIVE' : 'STANDBY'}
         </div>
-
         {solarSystem.isSpawned && (
-          <>
-            <div className="border-t border-white/5 pt-2 mt-2 space-y-0">
-              <HUDRow label="Scale" value={`${solarSystem.scale.toFixed(2)}x`} />
-              <HUDRow
-                label="Selected"
-                value={selectedPlanetData?.name ?? '—'}
-                highlight={!!selectedPlanetData}
-              />
-              <HUDRow
-                label="Grabbed"
-                value={solarSystem.grabbedPlanet
-                  ? PLANETS.find((p) => p.id === solarSystem.grabbedPlanet)?.name ?? '—'
-                  : '—'}
-                highlight={!!solarSystem.grabbedPlanet}
-              />
-            </div>
-          </>
+          <div className="text-[9px] font-mono text-gray-500 mt-1">
+            {solarSystem.scale.toFixed(2)}x scale
+          </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Right: Planet info */}
-      <AnimatePresence>
-        {displayPlanet && (
+      <AnimatePresence mode="wait">
+        {display && (
           <motion.div
-            key={displayPlanet.id}
-            initial={{ opacity: 0, x: 20, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 20, scale: 0.95 }}
+            key={display.id}
+            initial={{ y: 60, opacity: 0, scale: 0.95 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 10, opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="glass-bright rounded-2xl p-4 min-w-[190px]"
+            className="glass-bright rounded-2xl px-4 py-3 min-w-[200px]"
           >
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-2">
               <div
                 className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{
-                  backgroundColor: displayPlanet.color,
-                  boxShadow: `0 0 8px ${displayPlanet.color}`,
-                }}
+                style={{ backgroundColor: display.color, boxShadow: `0 0 8px ${display.color}` }}
               />
-              <span className="text-sm font-bold text-white tracking-wide">
-                {displayPlanet.name}
-              </span>
+              <span className="text-sm font-bold text-white font-sans">{display.name}</span>
             </div>
-
-            <p className="text-[10px] text-gray-400 mb-3 leading-relaxed">
-              {displayPlanet.description}
-            </p>
-
-            <div className="space-y-0 border-t border-white/5 pt-2">
-              {displayPlanet.distanceFromSun && (
-                <HUDRow label="Distance" value={displayPlanet.distanceFromSun} />
-              )}
-              {displayPlanet.dayLength && (
-                <HUDRow label="Day" value={displayPlanet.dayLength} />
-              )}
-              {displayPlanet.yearLength && (
-                <HUDRow label="Year" value={displayPlanet.yearLength} />
-              )}
-            </div>
+            <p className="text-[10px] text-gray-400 leading-relaxed mb-2">{display.description}</p>
+            {display.distanceFromSun && (
+              <div className="flex justify-between text-[9px] font-mono">
+                <span className="text-gray-600">Distance</span>
+                <span className="text-gray-300">{display.distanceFromSun}</span>
+              </div>
+            )}
+            {display.yearLength && (
+              <div className="flex justify-between text-[9px] font-mono mt-0.5">
+                <span className="text-gray-600">Year</span>
+                <span className="text-gray-300">{display.yearLength}</span>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   )
 }

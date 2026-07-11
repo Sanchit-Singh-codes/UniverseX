@@ -2,103 +2,94 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
-// Minimal inline SVG hand icons — no emoji
-function IconOpenPalm() {
+function HandOpenPalm({ color }: { color: string }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <line x1="8" y1="18" x2="8" y2="6" />
-      <line x1="11" y1="18" x2="11" y2="4" />
-      <line x1="14" y1="18" x2="14" y2="5" />
-      <line x1="17" y1="18" x2="17" y2="7" />
-      <path d="M5 18 Q5 22 9 22 L17 22 Q21 22 21 18 L21 10" />
-      <line x1="5" y1="10" x2="5" y2="18" />
+    <svg width="32" height="42" viewBox="0 0 32 42" fill="none" aria-hidden="true">
+      <path d="M5 27 C3 25 3 21 4 17 C5 14.5 7.5 14 9 15 L9 26" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M11 26 L11 9 C11 7 12.5 6 14 6 C15.5 6 17 7 17 9 L17 24" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M17 24 L17 7 C17 5.5 18 4.5 19.5 4.5 C21 4.5 22 5.5 22 7 L22 24" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M22 25 L22 9 C22 7 23 6 24.5 6 C26 6 27 7 27 9 L27 26" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M27 26 L27 13 C27 11.5 28 10.5 29 10.5 C30 10.5 31 11.5 31 13 L31 27" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M9 26 C8 28 8 32 10 34 C12 36 18 36.5 22 35 C25 34 27 31 27 27" stroke={color} strokeWidth="2" fill={color + '20'} strokeLinejoin="round" />
+      <path d="M31 27 C31 29 30 31 28 33" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M5 27 C5 29 6.5 32 9 33" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" />
     </svg>
   )
 }
 
-function IconPoint() {
+function HandPoint({ color }: { color: string }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <line x1="12" y1="18" x2="12" y2="4" />
-      <path d="M9 18 Q8 22 12 22 Q16 22 15 18" />
-      <path d="M9 12 Q8 18 8 18 L15 18 Q15 18 15 12" />
-      <line x1="8" y1="12" x2="8" y2="9" />
-      <line x1="15" y1="12" x2="15" y2="10" />
+    <svg width="32" height="42" viewBox="0 0 32 42" fill="none" aria-hidden="true">
+      <path d="M13 27 L13 7 C13 5 14.5 4 16 4 C17.5 4 19 5 19 7 L19 27" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+      <circle cx="16" cy="2.5" r="1.8" fill={color} opacity="0.9" />
+      <line x1="16" y1="0" x2="16" y2="4" stroke={color} strokeWidth="1.5" strokeDasharray="1.5 1.5" opacity="0.5" />
+      <path d="M19 27 C20 24 20 21 19.5 19" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.4" />
+      <path d="M20.5 28 C21.5 25 21.5 22 21 21" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.4" />
+      <path d="M22 28 C23 26 23 24 22.5 22.5" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.4" />
+      <path d="M12 27 C11 25 11 22 11.5 20" stroke={color} strokeWidth="2" strokeLinecap="round" opacity="0.4" />
+      <path d="M11 27 C10 32 11 36 15 37 L18 37 C22 36 23 32 22 27" stroke={color} strokeWidth="2" fill={color + '20'} strokeLinejoin="round" />
     </svg>
   )
 }
 
-function IconPinch() {
+function HandFist({ color }: { color: string }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M8 14 C 6 12 6 8 8 7 C 9 6.5 10 7 10 8 L10 12" />
-      <path d="M10 10 C 10 8 11 7.5 12 8 L12 11" />
-      <path d="M12 10 C 12 8 13 7.5 14 8 L14 12" />
-      <path d="M14 10 C 14 8 15 7.5 16 8 L16 14" />
-      <path d="M8 14 Q 8 18 12 18 L16 18 Q 18 18 18 14 L16 14" />
-      <circle cx="9" cy="6" r="1.5" />
-      <circle cx="12" cy="6" r="1.5" />
+    <svg width="32" height="42" viewBox="0 0 32 42" fill="none" aria-hidden="true">
+      <path d="M8 20 C8 17 10 15 13 15 C14 15 15 15.8 16.5 15.5 C18 15.2 19 15 20 15 C22 15 24 17 24 20" stroke={color} strokeWidth="2.2" strokeLinecap="round" fill={color + '18'} />
+      <path d="M8 20 L8 30 C8 33 10 35.5 13.5 36 L20 36 C23 35.5 24.5 33 24.5 30 L24.5 20" stroke={color} strokeWidth="2.2" fill={color + '18'} strokeLinejoin="round" />
+      <path d="M8 20 C7 18 6 16 7 14 C8 12 10 12 11 13.5 L11 20" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" />
+      <line x1="13.5" y1="20" x2="13.5" y2="25" stroke={color} strokeWidth="1.3" opacity="0.4" />
+      <line x1="17" y1="20" x2="17" y2="25" stroke={color} strokeWidth="1.3" opacity="0.4" />
+      <line x1="20.5" y1="20" x2="20.5" y2="25" stroke={color} strokeWidth="1.3" opacity="0.4" />
     </svg>
   )
 }
 
-function IconFist() {
+function HandTwoOpen({ color }: { color: string }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="7" y="9" width="10" height="6" rx="2" />
-      <path d="M7 13 L7 16 Q7 19 10 19 L14 19 Q17 19 17 16 L17 15" />
-      <path d="M7 9 L7 7 Q7 5 9 5 L9 9" />
+    <svg width="52" height="38" viewBox="0 0 52 38" fill="none" aria-hidden="true">
+      <g transform="scale(0.6,0.6) translate(0,0)">
+        <path d="M5 27 C3 25 3 21 5 17 L9 15 L9 26" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M11 26 L11 9 C11 7 14 6 17 9 L17 24" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M17 24 L17 7 C17 5.5 19.5 4.5 22 7 L22 24" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M22 25 L22 9 C22 7 24.5 6 27 9 L27 26" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M27 26 L27 13 C27 11.5 29 10.5 31 13 L31 27" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M9 26 C8 31 11 36 18 36 C25 36 27 31 27 26" stroke={color} strokeWidth="2.5" fill={color + '18'} />
+        <path d="M31 27 C31 30 29.5 33 27.5 34" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M5 27 C5 30 7 33 9.5 34" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+      </g>
+      <path d="M20 18 L24 18 M28 18 L32 18" stroke={color} strokeWidth="1.5" strokeDasharray="2 1.5" opacity="0.65" strokeLinecap="round" />
+      <g transform="translate(26,0) scale(0.6,0.6)">
+        <path d="M5 27 C3 25 3 21 5 17 L9 15 L9 26" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M11 26 L11 9 C11 7 14 6 17 9 L17 24" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M17 24 L17 7 C17 5.5 19.5 4.5 22 7 L22 24" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M22 25 L22 9 C22 7 24.5 6 27 9 L27 26" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M27 26 L27 13 C27 11.5 29 10.5 31 13 L31 27" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M9 26 C8 31 11 36 18 36 C25 36 27 31 27 26" stroke={color} strokeWidth="2.5" fill={color + '18'} />
+        <path d="M31 27 C31 30 29.5 33 27.5 34" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M5 27 C5 30 7 33 9.5 34" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+      </g>
     </svg>
   )
 }
 
-function IconTwoHandPinch() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="2.5" />
-      <path d="M5 12 C5 10 6 8 8 8" />
-      <path d="M5 12 C5 14 6 16 8 16" />
-      <path d="M19 12 C19 10 18 8 16 8" />
-      <path d="M19 12 C19 14 18 16 16 16" />
-      <line x1="2" y1="12" x2="5" y2="12" />
-      <line x1="19" y1="12" x2="22" y2="12" />
-    </svg>
-  )
+interface GestureItem {
+  Hand: React.FC<{ color: string }>
+  name: string
+  hand: string
+  action: string
+  color: string
+  step: string
 }
 
-const GESTURES = [
-  {
-    Icon: IconOpenPalm,
-    name: 'Open Palm',
-    action: 'Spawn Solar System',
-    color: '#00f5ff',
-  },
-  {
-    Icon: IconPoint,
-    name: 'Point',
-    action: 'Highlight nearest planet',
-    color: '#4db8ff',
-  },
-  {
-    Icon: IconPinch,
-    name: 'Pinch',
-    action: 'Grab highlighted planet',
-    color: '#00e0ff',
-  },
-  {
-    Icon: IconFist,
-    name: 'Fist',
-    action: 'Reset everything',
-    color: '#ff6644',
-  },
-  {
-    Icon: IconTwoHandPinch,
-    name: '2-Hand Pinch',
-    action: 'Resize Solar System',
-    color: '#88ccff',
-  },
+const GESTURES: GestureItem[] = [
+  { Hand: HandOpenPalm, name: 'Open Palm',      hand: 'Either hand', action: 'Spawn the solar system',         color: '#00f5ff', step: '1' },
+  { Hand: HandPoint,    name: 'Point',           hand: 'Right hand',  action: 'Aim at planet — hold to select',  color: '#4db8ff', step: '2' },
+  { Hand: HandFist,     name: 'Closed Fist',     hand: 'Left hand',   action: 'Start auto-rotation',             color: '#ff9944', step: '3' },
+  { Hand: HandOpenPalm, name: 'Open Palm',       hand: 'Left hand',   action: 'Stop rotation',                   color: '#00e090', step: '4' },
+  { Hand: HandTwoOpen,  name: 'Both Open Palms', hand: 'Both hands',  action: 'Spread to scale up / down',       color: '#88aaff', step: '5' },
 ]
 
 export function GestureGuide() {
@@ -106,24 +97,27 @@ export function GestureGuide() {
 
   return (
     <motion.div
-      initial={{ x: 100, opacity: 0 }}
+      initial={{ x: 120, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
-      className="absolute right-6 top-1/2 -translate-y-1/2 z-50"
-      style={{ maxWidth: 200 }}
+      transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.8 }}
+      className="absolute right-5 top-1/2 -translate-y-1/2 z-50"
+      style={{ width: 240 }}
     >
       <div className="glass-bright rounded-2xl overflow-hidden">
         <button
-          className="flex items-center justify-between gap-4 px-4 py-3 w-full hover:bg-cyan-500/5 transition-colors"
-          onClick={() => setOpen((v) => !v)}
+          className="flex items-center justify-between w-full px-4 py-3 hover:bg-white/5 transition-colors"
+          onClick={() => setOpen(v => !v)}
           aria-expanded={open}
           aria-label="Toggle gesture guide"
         >
-          <span className="text-[9px] font-mono tracking-[0.25em] text-cyan-400 uppercase">
-            Gesture Guide
-          </span>
-          <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
-            <ChevronDown size={12} className="text-gray-500" />
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse-glow" />
+            <span className="text-[10px] font-mono tracking-[0.28em] text-cyan-300 uppercase font-semibold">
+              Gesture Guide
+            </span>
+          </div>
+          <motion.div animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronRight size={13} className="text-cyan-500/50" />
           </motion.div>
         </button>
 
@@ -136,29 +130,45 @@ export function GestureGuide() {
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               className="overflow-hidden"
             >
-              <div className="px-4 pb-4 space-y-1 border-t border-white/5">
-                {GESTURES.map((g) => (
-                  <div key={g.name} className="flex items-center gap-3 py-2">
+              <div className="border-t border-white/5 divide-y divide-white/[0.04]">
+                {GESTURES.map((g, i) => (
+                  <motion.div
+                    key={g.step}
+                    initial={{ opacity: 0, x: 8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05, duration: 0.25 }}
+                    className="flex items-center gap-3 px-3 py-2.5"
+                  >
                     <div
-                      className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg"
-                      style={{
-                        color: g.color,
-                        background: `${g.color}12`,
-                        border: `1px solid ${g.color}28`,
-                      }}
+                      className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold font-mono"
+                      style={{ background: g.color + '20', border: '1px solid ' + g.color + '40', color: g.color }}
                     >
-                      <g.Icon />
+                      {g.step}
                     </div>
-                    <div>
-                      <div className="text-[11px] font-mono text-cyan-200 font-medium leading-tight">
+                    <div
+                      className="flex-shrink-0 flex items-center justify-center rounded-xl"
+                      style={{ width: 56, height: 46, background: g.color + '0c', border: '1px solid ' + g.color + '1e' }}
+                    >
+                      <g.Hand color={g.color} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-semibold font-mono leading-tight" style={{ color: g.color }}>
                         {g.name}
                       </div>
                       <div className="text-[9px] text-gray-500 font-mono leading-tight mt-0.5">
+                        {g.hand}
+                      </div>
+                      <div className="text-[9px] text-gray-400 leading-snug mt-1">
                         {g.action}
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
+              </div>
+              <div className="px-4 py-2.5 border-t border-white/5 bg-cyan-500/[0.04]">
+                <p className="text-[9px] text-cyan-400/45 font-mono text-center">
+                  Hold pointing finger still 0.8s to select
+                </p>
               </div>
             </motion.div>
           )}
