@@ -4,9 +4,9 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import type { GestureState, HandData, HandLandmark } from '@/lib/types'
 import { smoothLandmarks } from '@/lib/hand-tracker'
 import {
-  detectGesture,
+  detectGestures,
   getPinchPoint,
-  getPinchDistance,
+  getPalmDistance,
   getHandRotation,
   getTrackingQuality,
 } from '@/lib/gesture-detector'
@@ -24,6 +24,9 @@ const DEFAULT_GESTURE_STATE: GestureState = {
   handRotation: 0,
   isTracking: false,
   trackingQuality: 0,
+  leftGesture: 'none',
+  rightGesture: 'none',
+  twoHandScale: false,
 }
 
 export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | null>) {
@@ -32,80 +35,43 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
   const [error, setError] = useState<string | null>(null)
 
   const landmarkerRef = useRef<unknown>(null)
-  const prevLandmarksRef = useRef<HandLandmark[][] | null[]>([null, null])
+  const prevLandmarksRef = useRef<(HandLandmark[] | null)[]>([null, null])
   const animFrameRef = useRef<number>(0)
   const lastVideoTimeRef = useRef(-1)
-  const gestureHistoryRef = useRef<string[]>([])
-  const HISTORY_SIZE = 5
-
-  const getStableGesture = useCallback((newGesture: string): string => {
-    gestureHistoryRef.current.push(newGesture)
-    if (gestureHistoryRef.current.length > HISTORY_SIZE) {
-      gestureHistoryRef.current.shift()
-    }
-    const counts: Record<string, number> = {}
-    for (const g of gestureHistoryRef.current) {
-      counts[g] = (counts[g] ?? 0) + 1
-    }
-    let maxCount = 0
-    let stableGesture = newGesture
-    for (const [g, count] of Object.entries(counts)) {
-      if (count > maxCount) {
-        maxCount = count
-        stableGesture = g
-      }
-    }
-    return stableGesture
-  }, [])
 
   useEffect(() => {
     let cancelled = false
-
     async function init() {
       try {
         const { HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision')
         const vision = await FilesetResolver.forVisionTasks(WASM_CDN)
         const landmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: MODEL_URL,
-            delegate: 'GPU',
-          },
+          baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
           numHands: 2,
           runningMode: 'VIDEO',
           minHandDetectionConfidence: 0.5,
           minHandPresenceConfidence: 0.5,
           minTrackingConfidence: 0.5,
         })
-
         if (!cancelled) {
           landmarkerRef.current = landmarker
           setIsReady(true)
         }
       } catch (err) {
-        console.error('[v0] HandLandmarker init error:', err)
         if (!cancelled) setError('Hand tracking unavailable')
       }
     }
-
     init()
     return () => { cancelled = true }
   }, [])
 
   const startTracking = useCallback(async () => {
     const video = videoRef.current
-    if (!video) {
-      console.error('[v0] startTracking: no video element')
-      return
-    }
-    if (!landmarkerRef.current) {
-      console.error('[v0] startTracking: landmarker not ready yet')
-      return
-    }
+    if (!video || !landmarkerRef.current) return
 
-    // Stop any existing stream
     if (video.srcObject) {
-      const existing = (video.srcObject as MediaStream).getTracks()
-      existing.forEach((t) => t.stop())
+      const tracks = (video.srcObject as MediaStream).getTracks()
+      tracks.forEach((t) => t.stop())
       video.srcObject = null
     }
 
@@ -114,8 +80,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480, facingMode: 'user' },
       })
-    } catch (err) {
-      console.error('[v0] getUserMedia error:', err)
+    } catch {
       setError('Camera access denied — check browser permissions')
       return
     }
@@ -124,55 +89,42 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     video.muted = true
     video.playsInline = true
 
-    // Wait for enough data before starting detection loop
     await new Promise<void>((resolve) => {
-      const onReady = () => {
-        video.removeEventListener('loadedmetadata', onReady)
-        resolve()
-      }
-      if (video.readyState >= 1) {
-        resolve()
-      } else {
-        video.addEventListener('loadedmetadata', onReady)
-      }
+      if (video.readyState >= 1) return resolve()
+      video.addEventListener('loadedmetadata', () => resolve(), { once: true })
     })
 
     try {
       await video.play()
-    } catch (err) {
-      console.error('[v0] video.play() error:', err)
+    } catch {
       setError('Could not start video playback')
       return
     }
-
-    console.log('[v0] Camera started, video dimensions:', video.videoWidth, 'x', video.videoHeight)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const landmarker = landmarkerRef.current as any
 
     const detect = () => {
-      const video = videoRef.current
-      if (!video || video.readyState < 2 || video.videoWidth === 0) {
+      const v = videoRef.current
+      if (!v || v.readyState < 2 || v.videoWidth === 0) {
         animFrameRef.current = requestAnimationFrame(detect)
         return
       }
-
-      if (video.currentTime === lastVideoTimeRef.current) {
+      if (v.currentTime === lastVideoTimeRef.current) {
         animFrameRef.current = requestAnimationFrame(detect)
         return
       }
-      lastVideoTimeRef.current = video.currentTime
+      lastVideoTimeRef.current = v.currentTime
 
       try {
-        const result = landmarker.detectForVideo(video, performance.now())
+        const result = landmarker.detectForVideo(v, performance.now())
         const rawHands: HandData[] = []
 
-        if (result.landmarks && result.landmarks.length > 0) {
+        if (result.landmarks?.length > 0) {
           for (let i = 0; i < result.landmarks.length; i++) {
             const rawLm = result.landmarks[i] as HandLandmark[]
             const smoothed = smoothLandmarks(prevLandmarksRef.current[i] ?? null, rawLm, 0.4)
             prevLandmarksRef.current[i] = smoothed
-
             rawHands.push({
               landmarks: smoothed,
               handedness: result.handedness?.[i]?.[0]?.categoryName as 'Left' | 'Right' ?? 'Right',
@@ -183,28 +135,21 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
           prevLandmarksRef.current = [null, null]
         }
 
-        const rawGesture = detectGesture(rawHands)
-        const stableGesture = getStableGesture(rawGesture)
-
+        const detected = detectGestures(rawHands)
         const primaryHand = rawHands[0]
+
         const palmCenter = primaryHand
-          ? (() => {
-              const c = getPalmCenter(primaryHand.landmarks)
-              return { x: c.x, y: c.y }
-            })()
+          ? (() => { const c = getPalmCenter(primaryHand.landmarks); return { x: c.x, y: c.y } })()
           : null
 
-        const pinchPoint =
-          primaryHand && (stableGesture === 'pinch' || stableGesture === 'two_hand_pinch')
-            ? getPinchPoint(primaryHand.landmarks)
-            : null
-
-        const pinchDistance = getPinchDistance(rawHands)
+        const rightHand = rawHands.find((h) => h.handedness === 'Right')
+        const pinchPoint = rightHand ? getPinchPoint(rightHand.landmarks) : null
+        const pinchDistance = getPalmDistance(rawHands)
         const handRotation = primaryHand ? getHandRotation(primaryHand.landmarks) : 0
         const trackingQuality = getTrackingQuality(rawHands)
 
         setGestureState({
-          gesture: stableGesture as GestureState['gesture'],
+          ...detected,
           hands: rawHands,
           palmCenter,
           pinchPoint,
@@ -221,7 +166,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     }
 
     animFrameRef.current = requestAnimationFrame(detect)
-  }, [videoRef, getStableGesture])
+  }, [videoRef])
 
   const stopTracking = useCallback(() => {
     cancelAnimationFrame(animFrameRef.current)
