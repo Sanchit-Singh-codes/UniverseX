@@ -1,6 +1,8 @@
 'use client'
 
 import { Canvas } from '@react-three/fiber'
+import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing'
+import { BlendFunction } from 'postprocessing'
 import { SolarSystemScene } from './solar-system/solar-system-scene'
 import type { SolarSystemState, GestureState } from '@/lib/types'
 
@@ -33,6 +35,7 @@ export default function ThreeCanvas({
       className="absolute inset-0"
     >
       <fog attach="fog" args={['#000008', 80, 260]} />
+
       <SolarSystemScene
         solarSystem={solarSystem}
         gesture={gesture}
@@ -40,6 +43,27 @@ export default function ThreeCanvas({
         onPlanetSelect={onPlanetSelect}
         onSystemUpdate={onSystemUpdate}
       />
+
+      {/* Post-processing effects */}
+      <EffectComposer>
+        <Bloom
+          intensity={1.4}
+          luminanceThreshold={0.2}
+          luminanceSmoothing={0.7}
+          mipmapBlur
+        />
+        <ChromaticAberration
+          blendFunction={BlendFunction.NORMAL}
+          offset={[0.0003, 0.0003]}
+          radialModulation={false}
+          modulationOffset={0}
+        />
+        <Vignette
+          offset={0.4}
+          darkness={0.7}
+          blendFunction={BlendFunction.NORMAL}
+        />
+      </EffectComposer>
     </Canvas>
   )
 }

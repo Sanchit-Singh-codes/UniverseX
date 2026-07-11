@@ -82,7 +82,8 @@ export function HUD({ gesture, solarSystem, fps }: HUDProps) {
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
-      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-end gap-4 pointer-events-none"
+      className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-end gap-3 pointer-events-none px-4"
+      style={{ maxWidth: 'calc(100vw - 48px)' }}
     >
       {/* Left panel: Hand info */}
       <div className="glass-bright rounded-2xl p-4 min-w-[200px]">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useMemo, useCallback } from 'react'
+import { useRef, useMemo, useCallback, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Sun } from './sun'
@@ -127,20 +127,24 @@ export function SolarSystemScene({
   const cameraTarget = useRef<THREE.Vector3>(new THREE.Vector3(0, 8, 40))
   const cameraPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 8, 40))
 
+  // Animated spawn scale — spring from 0 to target
+  const animatedScaleRef = useRef(0.001)
+
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime
 
-    if (!solarSystem.isSpawned) return
+    // Always spring the animated scale toward target
+    const targetScale = solarSystem.isSpawned ? solarSystem.scale : 0.0001
+    animatedScaleRef.current += (targetScale - animatedScaleRef.current) * 0.07
 
-    // Apply system rotation
+    if (!solarSystem.isSpawned && !solarSystem.isSpawning) return
+
+    // Apply system rotation + animated scale
     if (groupRef.current) {
       const targetRot = solarSystem.rotation
       groupRef.current.rotation.y += (targetRot - groupRef.current.rotation.y) * 0.05
-      const targetScale = solarSystem.scale
-      groupRef.current.scale.lerp(
-        new THREE.Vector3(targetScale, targetScale, targetScale),
-        0.05
-      )
+      const s = animatedScaleRef.current
+      groupRef.current.scale.set(s, s, s)
     }
 
     // Camera smooth motion
@@ -163,13 +167,8 @@ export function SolarSystemScene({
     camera.lookAt(cameraTarget.current)
   })
 
-  // Spawn animation scale
-  const spawnScale = solarSystem.isSpawned ? solarSystem.scale : 0.001
-
-  if (!solarSystem.isSpawned && !solarSystem.isSpawning) return null
-
   return (
-    <group ref={groupRef} scale={[spawnScale, spawnScale, spawnScale]}>
+    <group ref={groupRef}>
       <SpaceDust />
       <SpawnParticles active={solarSystem.isSpawning} />
       <ambientLight intensity={0.06} color="#112244" />
