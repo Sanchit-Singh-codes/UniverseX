@@ -1,10 +1,11 @@
 export type GestureType =
   | 'none'
   | 'open_palm'
+  | 'closed_palm'
   | 'point'
   | 'pinch'
   | 'fist'
-  | 'two_hand_pinch'
+  | 'two_hand_scale'
   | 'rotate'
 
 export interface HandLandmark {
@@ -27,7 +28,11 @@ export interface GestureState {
   pinchDistance: number
   handRotation: number
   isTracking: boolean
-  trackingQuality: number // 0-1
+  trackingQuality: number
+  // Per-hand gestures for the new model
+  leftGesture: 'none' | 'open_palm' | 'closed_palm'
+  rightGesture: 'none' | 'open_palm' | 'point'
+  twoHandScale: boolean
 }
 
 export interface PlanetData {
@@ -48,6 +53,11 @@ export interface PlanetData {
   distanceFromSun?: string
   dayLength?: string
   yearLength?: string
+  // Extended stats
+  gravity?: string
+  radiusKm?: string
+  moons?: number
+  interestingFact?: string
 }
 
 export interface SolarSystemState {
@@ -55,8 +65,11 @@ export interface SolarSystemState {
   isSpawning: boolean
   scale: number
   rotation: number
+  isAutoRotating: boolean
   selectedPlanet: string | null
   hoveredPlanet: string | null
+  laserTarget: string | null
+  laserDwellProgress: number // 0-1
   grabbedPlanet: string | null
   planetOffset: { x: number; y: number; z: number } | null
 }

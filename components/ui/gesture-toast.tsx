@@ -12,7 +12,7 @@ const GESTURE_MESSAGES: Partial<Record<GestureType, string>> = {
   open_palm: 'Spawning Solar System...',
   fist: 'Resetting Solar System',
   pinch: 'Planet Grabbed',
-  two_hand_pinch: 'Resizing System',
+  two_hand_scale: 'Resizing System',
   point: 'Targeting Planet',
 }
 
