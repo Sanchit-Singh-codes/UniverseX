@@ -54,6 +54,7 @@ export default function UniverseX() {
   const dwellRafRef = useRef<number>(0)
 
   // ── Start flow ────────────────────────────────────────────────────────
+  // If MediaPipe finishes loading after the user clicked, auto-start tracking.
   const hasStartedRef = useRef(false)
   useEffect(() => { if (hasStarted) hasStartedRef.current = true }, [hasStarted])
   useEffect(() => {
@@ -61,7 +62,12 @@ export default function UniverseX() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady])
 
-  const handleStart = useCallback(() => { setHasStarted(true) }, [])
+  const handleStart = useCallback(() => {
+    setHasStarted(true)
+    // If MediaPipe is already ready when the user clicks, start immediately.
+    // If not, the isReady effect above will fire startTracking once it's done.
+    if (isReady) startTracking()
+  }, [isReady, startTracking])
 
   // ── Planet callbacks (mouse / pointer events from Three.js) ──────────
   const handlePlanetHover = useCallback((id: string | null) => {
@@ -202,8 +208,9 @@ export default function UniverseX() {
       if (dwellPlanetRef.current !== null) cancelDwell()
     }
 
-    // ── Spawn: right open_palm when nothing spawned ────────────────────
-    if (rightGesture === 'open_palm' && !solarSystem.isSpawned && !solarSystem.isSpawning) {
+    // ── Spawn: any open palm (left or right) when nothing spawned ──────
+    const anyOpenPalm = leftGesture === 'open_palm' || rightGesture === 'open_palm'
+    if (anyOpenPalm && !solarSystem.isSpawned && !solarSystem.isSpawning) {
       setSolarSystem((prev) => ({ ...prev, isSpawning: true }))
       setTimeout(() => {
         setSolarSystem((prev) => ({ ...prev, isSpawned: true, isSpawning: false }))
@@ -233,7 +240,7 @@ export default function UniverseX() {
       <AnimatePresence>
         {!hasStarted && (
           <StartScreen
-            isLoading={hasStarted && !isReady}
+            isLoading={!isReady}
             onStart={handleStart}
             error={error}
           />
@@ -292,10 +299,10 @@ export default function UniverseX() {
                     transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
                     className="text-2xl font-bold tracking-[0.2em] text-white/25 font-mono uppercase"
                   >
-                    Open Right Palm to Spawn
+                    Open Palm to Spawn
                   </motion.p>
                   <p className="text-xs text-cyan-400/15 font-mono mt-2 tracking-[0.3em]">
-                    Hold your right hand open toward the camera
+                    Hold either hand open toward the camera
                   </p>
                 </div>
               </motion.div>

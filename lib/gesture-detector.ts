@@ -29,12 +29,17 @@ export function isClosedPalm(lm: HandLandmark[]): boolean {
 }
 
 export function isPointing(lm: HandLandmark[]): boolean {
+  // Index extended; ring + pinky curled. Middle can be slightly extended (natural point).
   return (
     isFingerExtended(lm, 'index') &&
-    !isFingerExtended(lm, 'middle') &&
     !isFingerExtended(lm, 'ring') &&
     !isFingerExtended(lm, 'pinky')
   )
+}
+
+// Both palms open AND spread apart — explicit two-hand scale gesture
+export function isTwoHandScale(left: HandLandmark[], right: HandLandmark[]): boolean {
+  return isOpenPalm(left) && isOpenPalm(right)
 }
 
 // ─── Main detector ────────────────────────────────────────────────────────────
@@ -47,22 +52,22 @@ export function detectGestures(hands: HandData[]): Pick<GestureState, 'gesture' 
   const leftHand = hands.find((h) => h.handedness === 'Left')
   const rightHand = hands.find((h) => h.handedness === 'Right')
 
-  // Left hand gestures: open_palm (stop rotation) or closed_palm (start rotation)
+  // Left hand gestures
   if (leftHand) {
     const lm = leftHand.landmarks
     if (isOpenPalm(lm)) leftGesture = 'open_palm'
     else if (isClosedPalm(lm)) leftGesture = 'closed_palm'
   }
 
-  // Right hand gestures: point (laser) or open_palm
+  // Right hand gestures
   if (rightHand) {
     const lm = rightHand.landmarks
     if (isPointing(lm)) rightGesture = 'point'
     else if (isOpenPalm(lm)) rightGesture = 'open_palm'
   }
 
-  // Both hands present → scaling mode (takes priority)
-  if (leftHand && rightHand) {
+  // Two-hand scale: ONLY when both hands are open palms simultaneously
+  if (leftHand && rightHand && isTwoHandScale(leftHand.landmarks, rightHand.landmarks)) {
     twoHandScale = true
   }
 
