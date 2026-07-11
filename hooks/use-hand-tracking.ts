@@ -93,25 +93,66 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
 
   const startTracking = useCallback(async () => {
     const video = videoRef.current
-    if (!video || !landmarkerRef.current) return
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
-      })
-      video.srcObject = stream
-      await video.play()
-    } catch (err) {
-      setError('Camera access denied')
+    if (!video) {
+      console.error('[v0] startTracking: no video element')
       return
     }
+    if (!landmarkerRef.current) {
+      console.error('[v0] startTracking: landmarker not ready yet')
+      return
+    }
+
+    // Stop any existing stream
+    if (video.srcObject) {
+      const existing = (video.srcObject as MediaStream).getTracks()
+      existing.forEach((t) => t.stop())
+      video.srcObject = null
+    }
+
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' },
+      })
+    } catch (err) {
+      console.error('[v0] getUserMedia error:', err)
+      setError('Camera access denied — check browser permissions')
+      return
+    }
+
+    video.srcObject = stream
+    video.muted = true
+    video.playsInline = true
+
+    // Wait for enough data before starting detection loop
+    await new Promise<void>((resolve) => {
+      const onReady = () => {
+        video.removeEventListener('loadedmetadata', onReady)
+        resolve()
+      }
+      if (video.readyState >= 1) {
+        resolve()
+      } else {
+        video.addEventListener('loadedmetadata', onReady)
+      }
+    })
+
+    try {
+      await video.play()
+    } catch (err) {
+      console.error('[v0] video.play() error:', err)
+      setError('Could not start video playback')
+      return
+    }
+
+    console.log('[v0] Camera started, video dimensions:', video.videoWidth, 'x', video.videoHeight)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const landmarker = landmarkerRef.current as any
 
     const detect = () => {
       const video = videoRef.current
-      if (!video || video.readyState < 2) {
+      if (!video || video.readyState < 2 || video.videoWidth === 0) {
         animFrameRef.current = requestAnimationFrame(detect)
         return
       }

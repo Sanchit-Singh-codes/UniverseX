@@ -115,7 +115,7 @@ export default function SpaceBackground() {
       ctx.fillStyle = bg
       ctx.fillRect(0, 0, w, h)
 
-      // Draw nebula clouds
+      // Draw nebula clouds — hex colors parsed to individual r,g,b channels for rgba()
       for (const neb of nebulasRef.current) {
         neb.x += neb.driftX
         neb.y += neb.driftY
@@ -124,16 +124,16 @@ export default function SpaceBackground() {
         if (neb.y > h + neb.radius) neb.y = -neb.radius
         if (neb.y < -neb.radius) neb.y = h + neb.radius
 
-        // Parse hex color to rgba
-        const r = parseInt(neb.color.slice(1, 3), 16)
-        const g = parseInt(neb.color.slice(3, 5), 16)
-        const b = parseInt(neb.color.slice(5, 7), 16)
-        const grad2 = ctx.createRadialGradient(neb.x, neb.y, 0, neb.x, neb.y, neb.radius)
-        grad2.addColorStop(0, `rgba(${r},${g},${b},${neb.opacity})`)
-        grad2.addColorStop(0.5, `rgba(${r},${g},${b},${neb.opacity * 0.5})`)
-        grad2.addColorStop(1, `rgba(${r},${g},${b},0)`)
+        const hex = neb.color.replace('#', '')
+        const nr = parseInt(hex.substring(0, 2), 16)
+        const ng = parseInt(hex.substring(2, 4), 16)
+        const nb = parseInt(hex.substring(4, 6), 16)
+        const nebGrad = ctx.createRadialGradient(neb.x, neb.y, 0, neb.x, neb.y, neb.radius)
+        nebGrad.addColorStop(0, `rgba(${nr},${ng},${nb},${neb.opacity})`)
+        nebGrad.addColorStop(0.5, `rgba(${nr},${ng},${nb},${neb.opacity * 0.5})`)
+        nebGrad.addColorStop(1, `rgba(${nr},${ng},${nb},0)`)
 
-        ctx.fillStyle = grad2
+        ctx.fillStyle = nebGrad
         ctx.beginPath()
         ctx.arc(neb.x, neb.y, neb.radius, 0, Math.PI * 2)
         ctx.fill()

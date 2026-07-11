@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import SpaceBackground from './space-background'
 import CameraFeed from './camera-feed'
@@ -10,10 +10,12 @@ import { HUD } from './ui/hud'
 import { GestureGuide } from './ui/gesture-guide'
 import { StartScreen } from './ui/start-screen'
 import { GestureToast } from './ui/gesture-toast'
+import { PlanetInfoOverlay } from './ui/planet-info-overlay'
 import { useHandTracking } from '@/hooks/use-hand-tracking'
 import { useFPS } from '@/hooks/use-fps'
 import type { SolarSystemState, GestureState } from '@/lib/types'
 import { PLANETS } from '@/lib/planet-data'
+import { LANDMARK_INDICES } from '@/lib/hand-tracker'
 
 const ThreeCanvas = dynamic(() => import('./three-canvas'), { ssr: false })
 
@@ -41,10 +43,31 @@ export default function UniverseX() {
   const initialScaleRef = useRef(1.0)
   const prevGestureRef = useRef(gestureState.gesture)
 
+  // Store current orbit angles in a ref for nearest-planet lookups
+  // The solar system scene drives these — we read them via onSystemUpdate
+  const orbitAnglesRef = useRef<Record<string, number>>(
+    Object.fromEntries(PLANETS.map((p) => [p.id, Math.random() * Math.PI * 2]))
+  )
+
   const handleStart = useCallback(async () => {
     setHasStarted(true)
-    await startTracking()
-  }, [startTracking])
+    // If the landmarker hasn't finished loading yet, startTracking will bail early.
+    // We also keep a ref so the auto-start effect below can fire once isReady flips.
+  }, [])
+
+  // Once hasStarted AND isReady, start camera+tracking.
+  // This handles the race where the user clicks before MediaPipe finishes loading.
+  const hasStartedRef = useRef(false)
+  useEffect(() => {
+    if (hasStarted) hasStartedRef.current = true
+  }, [hasStarted])
+
+  useEffect(() => {
+    if (isReady && hasStartedRef.current) {
+      startTracking()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady])
 
   const handlePlanetHover = useCallback((id: string | null) => {
     setSolarSystem((prev) => ({ ...prev, hoveredPlanet: id }))
@@ -69,6 +92,35 @@ export default function UniverseX() {
     }
   }, [])
 
+  /**
+   * Find the nearest planet to a normalized screen position (0-1, 0-1).
+   * Maps finger position to approximate world-space and compares with orbit positions.
+   */
+  const findNearestPlanet = useCallback((normX: number, normY: number): string | null => {
+    // Map normalized screen to approximate world XZ plane at Y=0
+    // Camera is at ~(0, 18, 55) with fov=50, looking toward origin
+    const worldX = (0.5 - normX) * 80 * solarSystem.scale
+    const worldZ = (normY - 0.5) * 60 * solarSystem.scale
+
+    let nearestId: string | null = null
+    let nearestDist = Infinity
+
+    for (const planet of PLANETS) {
+      const angle = orbitAnglesRef.current[planet.id] ?? 0
+      const px = Math.cos(angle) * planet.orbitRadius * solarSystem.scale
+      const pz = Math.sin(angle) * planet.orbitRadius * solarSystem.scale
+      const dx = worldX - px
+      const dz = worldZ - pz
+      const dist = Math.sqrt(dx * dx + dz * dz)
+      if (dist < nearestDist) {
+        nearestDist = dist
+        nearestId = planet.id
+      }
+    }
+
+    return nearestId
+  }, [solarSystem.scale])
+
   // Gesture → Solar System logic
   useEffect(() => {
     const { gesture, hands, pinchDistance, handRotation } = gestureState
@@ -80,7 +132,7 @@ export default function UniverseX() {
       setSolarSystem((prev) => ({ ...prev, isSpawning: true }))
       setTimeout(() => {
         setSolarSystem((prev) => ({ ...prev, isSpawned: true, isSpawning: false }))
-      }, 1500)
+      }, 1400)
       return
     }
 
@@ -91,19 +143,31 @@ export default function UniverseX() {
       return
     }
 
-    // Pinch → grab nearest planet
+    // Point → highlight nearest planet using index fingertip position
+    if (gesture === 'point' && solarSystem.isSpawned) {
+      const primaryHand = hands[0]
+      if (primaryHand) {
+        const indexTip = primaryHand.landmarks[LANDMARK_INDICES.INDEX_TIP]
+        const nearestId = findNearestPlanet(indexTip.x, indexTip.y)
+        setSolarSystem((prev) => ({ ...prev, hoveredPlanet: nearestId }))
+      }
+    } else if (gesture !== 'point' && prevGesture === 'point') {
+      // Clear hover when leaving point gesture
+      setSolarSystem((prev) => ({ ...prev, hoveredPlanet: null }))
+    }
+
+    // Pinch → grab the hovered planet (or nearest)
     if (gesture === 'pinch' && prevGesture !== 'pinch' && solarSystem.isSpawned) {
       const pinchPt = gestureState.pinchPoint
       if (pinchPt && !solarSystem.grabbedPlanet) {
-        // Find nearest planet based on pinch position (normalized to -1..1)
-        const nearestPlanet = PLANETS[0]?.id ?? null
-        if (nearestPlanet) {
-          const grabX = (pinchPt.x - 0.5) * 40
-          const grabY = -(pinchPt.y - 0.5) * 30
+        const targetPlanet = solarSystem.hoveredPlanet ?? findNearestPlanet(pinchPt.x, pinchPt.y)
+        if (targetPlanet) {
+          const grabX = (0.5 - pinchPt.x) * 80 * solarSystem.scale
+          const grabZ = (pinchPt.y - 0.5) * 60 * solarSystem.scale
           setSolarSystem((prev) => ({
             ...prev,
-            grabbedPlanet: solarSystem.hoveredPlanet ?? nearestPlanet,
-            planetOffset: { x: grabX, y: grabY, z: 0 },
+            grabbedPlanet: targetPlanet,
+            planetOffset: { x: grabX, y: 2, z: grabZ },
           }))
         }
       }
@@ -113,11 +177,11 @@ export default function UniverseX() {
     if (gesture === 'pinch' && solarSystem.grabbedPlanet && gestureState.pinchPoint) {
       const px = gestureState.pinchPoint.x
       const py = gestureState.pinchPoint.y
-      const worldX = (1 - px - 0.5) * 40
-      const worldY = -(py - 0.5) * 30
+      const worldX = (0.5 - px) * 80 * solarSystem.scale
+      const worldZ = (py - 0.5) * 60 * solarSystem.scale
       setSolarSystem((prev) => ({
         ...prev,
-        planetOffset: { x: worldX, y: worldY, z: 2 },
+        planetOffset: { x: worldX, y: 3, z: worldZ },
       }))
     }
 
@@ -144,11 +208,12 @@ export default function UniverseX() {
       initialPinchRef.current = null
     }
 
-    // Hand rotation → rotate system
+    // Open palm rotation → rotate system
     if (gesture === 'open_palm' && solarSystem.isSpawned && hands.length > 0) {
       setSolarSystem((prev) => ({ ...prev, rotation: handRotation * 2 }))
     }
-  }, [gestureState, solarSystem.isSpawned, solarSystem.isSpawning, solarSystem.hoveredPlanet, solarSystem.grabbedPlanet, solarSystem.scale])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gestureState])
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#000008]">
@@ -179,13 +244,6 @@ export default function UniverseX() {
 
       {hasStarted && (
         <>
-          {/* Hidden video element for MediaPipe */}
-          <video
-            ref={videoRef}
-            className="absolute opacity-0 pointer-events-none"
-            style={{ width: 1, height: 1, zIndex: -1 }}
-          />
-
           {/* Top navigation */}
           <TopNav
             fps={fps}
@@ -195,7 +253,7 @@ export default function UniverseX() {
             onSettings={() => {}}
           />
 
-          {/* Camera feed with hand overlay */}
+          {/* Camera feed with hand overlay - top right corner */}
           <CameraFeed
             ref={videoRef}
             gestureState={gestureState}
@@ -209,6 +267,15 @@ export default function UniverseX() {
             fps={fps}
           />
 
+          {/* Planet info overlay — left side when selected */}
+          <PlanetInfoOverlay
+            planet={solarSystem.selectedPlanet
+              ? PLANETS.find((p) => p.id === solarSystem.selectedPlanet) ?? null
+              : null
+            }
+            onClose={() => setSolarSystem((prev) => ({ ...prev, selectedPlanet: null }))}
+          />
+
           {/* Right side gesture guide */}
           <GestureGuide />
 
@@ -216,21 +283,31 @@ export default function UniverseX() {
           <GestureToast gesture={gestureState.gesture} />
 
           {/* Instructions if solar system not yet spawned */}
-          {!solarSystem.isSpawned && !solarSystem.isSpawning && (
-            <div
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-              style={{ zIndex: 30 }}
-            >
-              <div className="text-center">
-                <p className="text-2xl font-bold tracking-widest text-white/20 font-mono uppercase">
-                  Show Open Palm to Spawn
-                </p>
-                <p className="text-sm text-cyan-400/20 font-mono mt-2 tracking-wider">
-                  Point all five fingers at the screen
-                </p>
-              </div>
-            </div>
-          )}
+          <AnimatePresence>
+            {!solarSystem.isSpawned && !solarSystem.isSpawning && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.6 }}
+                className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                style={{ zIndex: 30 }}
+              >
+                <div className="text-center">
+                  <motion.p
+                    animate={{ opacity: [0.2, 0.5, 0.2] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                    className="text-2xl font-bold tracking-[0.2em] text-white/30 font-mono uppercase"
+                  >
+                    Open Palm to Spawn
+                  </motion.p>
+                  <p className="text-xs text-cyan-400/20 font-mono mt-2 tracking-[0.3em]">
+                    Point all five fingers at the screen
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </>
       )}
     </div>

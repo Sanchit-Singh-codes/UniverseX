@@ -15,7 +15,7 @@ interface PlanetProps {
   systemScale: number
   onHover: (id: string | null) => void
   onSelect: (id: string | null) => void
-  orbitAngleRef: React.MutableRefObject<number>
+  orbitAngleRef: { current: number }
 }
 
 function SaturnRings({ innerRadius, outerRadius }: { innerRadius: number; outerRadius: number }) {
