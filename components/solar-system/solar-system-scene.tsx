@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useCallback, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Sun } from './sun'
@@ -16,74 +16,95 @@ interface SolarSystemSceneProps {
   onSystemUpdate: (updates: Partial<SolarSystemState>) => void
 }
 
-// Spawn burst particles
+// Spawn animation particles
 function SpawnParticles({ active }: { active: boolean }) {
-  const ref = useRef<THREE.Points>(null)
-  const lifeRef = useRef(0)
+  const pointsRef = useRef<THREE.Points>(null)
+  const countRef = useRef(0)
 
   const geo = useMemo(() => {
-    const count = 300
-    const pos = new Float32Array(count * 3)
-    const vel = new Float32Array(count * 3)
+    const count = 400
+    const positions = new Float32Array(count * 3)
+    const velocities = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(2 * Math.random() - 1)
-      const r = Math.random() * 4
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta)
-      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
-      pos[i * 3 + 2] = r * Math.cos(phi)
-      const spd = 0.4 + Math.random() * 1.2
-      vel[i * 3] = (Math.random() - 0.5) * spd
-      vel[i * 3 + 1] = (Math.random() - 0.5) * spd
-      vel[i * 3 + 2] = (Math.random() - 0.5) * spd
+      const r = Math.random() * 5
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
+      positions[i * 3 + 2] = r * Math.cos(phi)
+      const speed = 0.5 + Math.random() * 1.5
+      velocities[i * 3] = (Math.random() - 0.5) * speed
+      velocities[i * 3 + 1] = (Math.random() - 0.5) * speed
+      velocities[i * 3 + 2] = (Math.random() - 0.5) * speed
     }
     const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    g.userData.vel = vel
+    g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    g.userData.velocities = velocities
     return g
   }, [])
 
   const mat = useMemo(() => new THREE.PointsMaterial({
-    color: '#00e5ff', size: 0.07, transparent: true, opacity: 0.9, depthWrite: false, sizeAttenuation: true,
+    color: '#00f5ff',
+    size: 0.08,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false,
+    sizeAttenuation: true,
   }), [])
 
   useFrame((_, delta) => {
-    if (!active || !ref.current) return
-    lifeRef.current += delta
-    const pos = geo.getAttribute('position') as THREE.BufferAttribute
-    const vel = geo.userData.vel as Float32Array
-    for (let i = 0; i < pos.count; i++) {
-      pos.setXYZ(i, pos.getX(i) + vel[i * 3] * delta, pos.getY(i) + vel[i * 3 + 1] * delta, pos.getZ(i) + vel[i * 3 + 2] * delta)
+    if (!active || !pointsRef.current) return
+    countRef.current += delta
+    const positions = geo.getAttribute('position') as THREE.BufferAttribute
+    const velocities = geo.userData.velocities as Float32Array
+    for (let i = 0; i < positions.count; i++) {
+      positions.setXYZ(
+        i,
+        positions.getX(i) + velocities[i * 3] * delta,
+        positions.getY(i) + velocities[i * 3 + 1] * delta,
+        positions.getZ(i) + velocities[i * 3 + 2] * delta,
+      )
     }
-    pos.needsUpdate = true
-    mat.opacity = Math.max(0, 0.9 - lifeRef.current * 0.6)
+    positions.needsUpdate = true
+    mat.opacity = Math.max(0, 0.8 - countRef.current * 0.5)
   })
 
   if (!active) return null
-  return <points ref={ref} geometry={geo} material={mat} />
+
+  return <points ref={pointsRef} geometry={geo} material={mat} />
 }
 
-// Subtle floating space dust inside the scene
+// Space dust floating particles
 function SpaceDust() {
   const ref = useRef<THREE.Points>(null)
   const geo = useMemo(() => {
-    const count = 500
-    const pos = new Float32Array(count * 3)
+    const count = 800
+    const positions = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 160
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 30
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 160
+      positions[i * 3] = (Math.random() - 0.5) * 120
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 40
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 120
     }
     const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     return g
   }, [])
+
   const mat = useMemo(() => new THREE.PointsMaterial({
-    color: '#334466', size: 0.04, transparent: true, opacity: 0.3, depthWrite: false, sizeAttenuation: true,
+    color: '#4488aa',
+    size: 0.05,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+    sizeAttenuation: true,
   }), [])
+
   useFrame((state) => {
-    if (ref.current) ref.current.rotation.y = state.clock.elapsedTime * 0.003
+    if (ref.current) {
+      ref.current.rotation.y = state.clock.elapsedTime * 0.005
+    }
   })
+
   return <points ref={ref} geometry={geo} material={mat} />
 }
 
@@ -102,64 +123,55 @@ export function SolarSystemScene({
     Object.fromEntries(PLANETS.map((p) => [p.id, { current: Math.random() * Math.PI * 2 }]))
   )
 
-  // Camera targets
-  const camPosTarget = useRef(new THREE.Vector3(0, 18, 60))
-  const camLookTarget = useRef(new THREE.Vector3(0, 0, 0))
-  const camPos = useRef(new THREE.Vector3(0, 18, 60))
-  const camLook = useRef(new THREE.Vector3(0, 0, 0))
+  // Camera target for planet focus
+  const cameraTarget = useRef<THREE.Vector3>(new THREE.Vector3(0, 8, 40))
+  const cameraPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 8, 40))
 
-  // Spawn scale spring
-  const animScale = useRef(0.001)
+  // Animated spawn scale — spring from 0 to target
+  const animatedScaleRef = useRef(0.001)
 
-  // Auto-rotation accumulator
-  const autoRotRef = useRef(0)
+  useFrame((state, delta) => {
+    const t = state.clock.elapsedTime
 
-  useFrame((_, delta) => {
-    // Spring spawn scale
+    // Always spring the animated scale toward target
     const targetScale = solarSystem.isSpawned ? solarSystem.scale : 0.0001
-    animScale.current += (targetScale - animScale.current) * 0.07
+    animatedScaleRef.current += (targetScale - animatedScaleRef.current) * 0.07
 
     if (!solarSystem.isSpawned && !solarSystem.isSpawning) return
 
+    // Apply system rotation + animated scale
     if (groupRef.current) {
-      // Auto-rotation (left closed palm = rotate, left open palm = stop)
-      if (solarSystem.isAutoRotating) {
-        autoRotRef.current += delta * 0.18
-      }
-      // Manual rotation from universe-x can also override via solarSystem.rotation
-      groupRef.current.rotation.y = autoRotRef.current + solarSystem.rotation
-      const s = animScale.current
+      const targetRot = solarSystem.rotation
+      groupRef.current.rotation.y += (targetRot - groupRef.current.rotation.y) * 0.05
+      const s = animatedScaleRef.current
       groupRef.current.scale.set(s, s, s)
     }
 
-    // Camera smooth fly-to
+    // Camera smooth motion
     if (solarSystem.selectedPlanet) {
       const planet = PLANETS.find((p) => p.id === solarSystem.selectedPlanet)
       if (planet) {
         const angle = orbitAngles.current[planet.id]?.current ?? 0
         const px = Math.cos(angle) * planet.orbitRadius * solarSystem.scale
         const pz = Math.sin(angle) * planet.orbitRadius * solarSystem.scale
-        const dist = planet.radius * 7 + 5
-        camPosTarget.current.set(px + dist, planet.radius * 2.5, pz + dist)
-        camLookTarget.current.set(px, 0, pz)
+        cameraTarget.current.set(px, 0, pz)
+        const dist = planet.radius * 8 + 4
+        cameraPos.current.set(px + dist, planet.radius * 3, pz + dist)
       }
     } else {
-      camPosTarget.current.set(0, 18, 60)
-      camLookTarget.current.set(0, 0, 0)
+      cameraTarget.current.set(0, 0, 0)
+      cameraPos.current.set(0, 18, 55)
     }
 
-    // Eased camera interpolation
-    camPos.current.lerp(camPosTarget.current, 0.025)
-    camLook.current.lerp(camLookTarget.current, 0.025)
-    camera.position.copy(camPos.current)
-    camera.lookAt(camLook.current)
+    camera.position.lerp(cameraPos.current, 0.03)
+    camera.lookAt(cameraTarget.current)
   })
 
   return (
     <group ref={groupRef}>
       <SpaceDust />
       <SpawnParticles active={solarSystem.isSpawning} />
-      <ambientLight intensity={0.07} color="#0a1a33" />
+      <ambientLight intensity={0.06} color="#112244" />
       <Sun radius={SUN_DATA.radius} visible={solarSystem.isSpawned} />
 
       {PLANETS.map((planet) => (
@@ -168,12 +180,13 @@ export function SolarSystemScene({
           data={planet}
           isHovered={solarSystem.hoveredPlanet === planet.id}
           isSelected={solarSystem.selectedPlanet === planet.id}
-          isLaserTarget={solarSystem.laserTarget === planet.id}
-          laserDwellProgress={solarSystem.laserTarget === planet.id ? solarSystem.laserDwellProgress : 0}
+          isGrabbed={solarSystem.grabbedPlanet === planet.id}
+          grabOffset={solarSystem.grabbedPlanet === planet.id ? solarSystem.planetOffset : null}
+          systemRotation={solarSystem.rotation}
           systemScale={solarSystem.scale}
           onHover={onPlanetHover}
           onSelect={onPlanetSelect}
-          orbitAngleRef={orbitAngles.current[planet.id]}
+          orbitAngleRef={orbitAngles.current[planet.id] as React.MutableRefObject<number>}
         />
       ))}
     </group>

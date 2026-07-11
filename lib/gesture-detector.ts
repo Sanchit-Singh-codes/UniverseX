@@ -1,84 +1,60 @@
-import type { GestureType, GestureState, HandData, HandLandmark } from './types'
+import type { GestureType, HandData, HandLandmark } from './types'
 import {
   dist3d,
   isFingerExtended,
   getPalmCenter,
   LANDMARK_INDICES,
+  FINGERTIP_INDICES,
 } from './hand-tracker'
 
-const { THUMB_TIP, INDEX_TIP, WRIST } = LANDMARK_INDICES
+const { THUMB_TIP, INDEX_TIP, MIDDLE_TIP, RING_TIP, PINKY_TIP, WRIST } = LANDMARK_INDICES
 
-// ─── Per-hand gesture helpers ─────────────────────────────────────────────────
+export function detectGesture(hands: HandData[]): GestureType {
+  if (hands.length === 0) return 'none'
 
-export function isOpenPalm(lm: HandLandmark[]): boolean {
-  return (
-    isFingerExtended(lm, 'index') &&
-    isFingerExtended(lm, 'middle') &&
-    isFingerExtended(lm, 'ring') &&
-    isFingerExtended(lm, 'pinky')
-  )
-}
+  if (hands.length >= 2) {
+    // Two-hand pinch: both hands pinching
+    const h1 = hands[0].landmarks
+    const h2 = hands[1].landmarks
+    const pinch1 = dist3d(h1[THUMB_TIP], h1[INDEX_TIP]) < 0.05
+    const pinch2 = dist3d(h2[THUMB_TIP], h2[INDEX_TIP]) < 0.05
+    if (pinch1 && pinch2) return 'two_hand_pinch'
+  }
 
-export function isClosedPalm(lm: HandLandmark[]): boolean {
-  return (
+  const lm = hands[0].landmarks
+
+  // Closed fist: all fingers curled
+  const allCurled =
     !isFingerExtended(lm, 'index') &&
     !isFingerExtended(lm, 'middle') &&
     !isFingerExtended(lm, 'ring') &&
     !isFingerExtended(lm, 'pinky')
-  )
-}
 
-export function isPointing(lm: HandLandmark[]): boolean {
-  return (
+  if (allCurled) return 'fist'
+
+  // Open palm: all fingers extended
+  const allExtended =
+    isFingerExtended(lm, 'index') &&
+    isFingerExtended(lm, 'middle') &&
+    isFingerExtended(lm, 'ring') &&
+    isFingerExtended(lm, 'pinky')
+
+  if (allExtended) return 'open_palm'
+
+  // Pinch: thumb and index close together
+  const pinchDist = dist3d(lm[THUMB_TIP], lm[INDEX_TIP])
+  if (pinchDist < 0.045) return 'pinch'
+
+  // Point: only index extended
+  const indexOnly =
     isFingerExtended(lm, 'index') &&
     !isFingerExtended(lm, 'middle') &&
     !isFingerExtended(lm, 'ring') &&
     !isFingerExtended(lm, 'pinky')
-  )
-}
 
-// ─── Main detector ────────────────────────────────────────────────────────────
+  if (indexOnly) return 'point'
 
-export function detectGestures(hands: HandData[]): Pick<GestureState, 'gesture' | 'leftGesture' | 'rightGesture' | 'twoHandScale'> {
-  let leftGesture: GestureState['leftGesture'] = 'none'
-  let rightGesture: GestureState['rightGesture'] = 'none'
-  let twoHandScale = false
-
-  const leftHand = hands.find((h) => h.handedness === 'Left')
-  const rightHand = hands.find((h) => h.handedness === 'Right')
-
-  // Left hand gestures: open_palm (stop rotation) or closed_palm (start rotation)
-  if (leftHand) {
-    const lm = leftHand.landmarks
-    if (isOpenPalm(lm)) leftGesture = 'open_palm'
-    else if (isClosedPalm(lm)) leftGesture = 'closed_palm'
-  }
-
-  // Right hand gestures: point (laser) or open_palm
-  if (rightHand) {
-    const lm = rightHand.landmarks
-    if (isPointing(lm)) rightGesture = 'point'
-    else if (isOpenPalm(lm)) rightGesture = 'open_palm'
-  }
-
-  // Both hands present → scaling mode (takes priority)
-  if (leftHand && rightHand) {
-    twoHandScale = true
-  }
-
-  // Legacy composite gesture for HUD/toast
-  let gesture: GestureType = 'none'
-  if (twoHandScale) gesture = 'two_hand_scale'
-  else if (rightGesture === 'point') gesture = 'point'
-  else if (leftGesture === 'closed_palm') gesture = 'closed_palm'
-  else if (leftGesture === 'open_palm') gesture = 'open_palm'
-
-  return { gesture, leftGesture, rightGesture, twoHandScale }
-}
-
-// Legacy single-hand gesture for backward compat (used by getStableGesture in hook)
-export function detectGesture(hands: HandData[]): GestureType {
-  return detectGestures(hands).gesture
+  return 'none'
 }
 
 export function getPinchPoint(lm: HandLandmark[]): { x: number; y: number } {
@@ -88,15 +64,14 @@ export function getPinchPoint(lm: HandLandmark[]): { x: number; y: number } {
   }
 }
 
-export function getPalmDistance(hands: HandData[]): number {
+export function getPinchDistance(hands: HandData[]): number {
   if (hands.length < 2) return 0
-  const palm1 = getPalmCenter(hands[0].landmarks)
-  const palm2 = getPalmCenter(hands[1].landmarks)
+  const lm1 = hands[0].landmarks
+  const lm2 = hands[1].landmarks
+  const palm1 = getPalmCenter(lm1)
+  const palm2 = getPalmCenter(lm2)
   return dist3d(palm1, palm2)
 }
-
-// Keep old export name for hook compatibility
-export const getPinchDistance = getPalmDistance
 
 export function getHandRotation(lm: HandLandmark[]): number {
   const wrist = lm[WRIST]

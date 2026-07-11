@@ -24,16 +24,11 @@ const INITIAL_SOLAR_SYSTEM: SolarSystemState = {
   isSpawning: false,
   scale: 1.0,
   rotation: 0,
-  isAutoRotating: false,
   selectedPlanet: null,
   hoveredPlanet: null,
-  laserTarget: null,
-  laserDwellProgress: 0,
   grabbedPlanet: null,
   planetOffset: null,
 }
-
-const DWELL_TIME = 0.8 // seconds to auto-select
 
 export default function UniverseX() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -43,27 +38,22 @@ export default function UniverseX() {
 
   const { gestureState, isReady, error, startTracking, stopTracking } = useHandTracking(videoRef)
 
-  // ── Scale (two-hand) ──────────────────────────────────────────────────
-  const prevPalmDistRef = useRef<number | null>(null)
-  const baseScaleRef = useRef(1.0)
+  // Track initial pinch scale
+  const initialPinchRef = useRef<number | null>(null)
+  const initialScaleRef = useRef(1.0)
+  const prevGestureRef = useRef(gestureState.gesture)
 
-  // ── Laser dwell timer ─────────────────────────────────────────────────
-  const dwellPlanetRef = useRef<string | null>(null)
-  const dwellStartRef = useRef<number | null>(null)
-  const dwellProgressRef = useRef(0)
-  const dwellRafRef = useRef<number>(0)
+  // Store current orbit angles in a ref for nearest-planet lookups
+  // The solar system scene drives these — we read them via onSystemUpdate
+  const orbitAnglesRef = useRef<Record<string, number>>(
+    Object.fromEntries(PLANETS.map((p) => [p.id, Math.random() * Math.PI * 2]))
+  )
 
-  // ── Start flow ────────────────────────────────────────────────────────
-  const hasStartedRef = useRef(false)
-  useEffect(() => { if (hasStarted) hasStartedRef.current = true }, [hasStarted])
-  useEffect(() => {
-    if (isReady && hasStartedRef.current) startTracking()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady])
+  const handleStart = useCallback(async () => {
+    setHasStarted(true)
+    await startTracking()
+  }, [startTracking])
 
-  const handleStart = useCallback(() => { setHasStarted(true) }, [])
-
-  // ── Planet callbacks (mouse / pointer events from Three.js) ──────────
   const handlePlanetHover = useCallback((id: string | null) => {
     setSolarSystem((prev) => ({ ...prev, hoveredPlanet: id }))
   }, [])
@@ -80,142 +70,139 @@ export default function UniverseX() {
   }, [])
 
   const handleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {})
-    else document.exitFullscreen().catch(() => {})
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {})
+    } else {
+      document.exitFullscreen().catch(() => {})
+    }
   }, [])
 
-  // ── Find nearest planet from right-hand index fingertip ──────────────
-  const findNearestPlanetToFinger = useCallback((normX: number, normY: number, scale: number): string | null => {
-    // Map normalized screen coords to approximate world XZ
-    const worldX = (0.5 - normX) * 90 * scale
-    const worldZ = (normY - 0.5) * 70 * scale
+  /**
+   * Find the nearest planet to a normalized screen position (0-1, 0-1).
+   * Maps finger position to approximate world-space and compares with orbit positions.
+   */
+  const findNearestPlanet = useCallback((normX: number, normY: number): string | null => {
+    // Map normalized screen to approximate world XZ plane at Y=0
+    // Camera is at ~(0, 18, 55) with fov=50, looking toward origin
+    const worldX = (0.5 - normX) * 80 * solarSystem.scale
+    const worldZ = (normY - 0.5) * 60 * solarSystem.scale
+
     let nearestId: string | null = null
     let nearestDist = Infinity
-    // Only match within a reasonable radius (selection sphere)
-    const SELECTION_RADIUS = 8 * scale
+
     for (const planet of PLANETS) {
-      // We don't have live orbit angles here, so approximate with orbitRadius only
-      // The scene drives actual positions — we use orbit radius in XZ as a proxy
-      const dist = Math.sqrt(worldX * worldX + worldZ * worldZ) - planet.orbitRadius * scale
-      const ringProximity = Math.abs(dist)
-      if (ringProximity < SELECTION_RADIUS && ringProximity < nearestDist) {
-        nearestDist = ringProximity
+      const angle = orbitAnglesRef.current[planet.id] ?? 0
+      const px = Math.cos(angle) * planet.orbitRadius * solarSystem.scale
+      const pz = Math.sin(angle) * planet.orbitRadius * solarSystem.scale
+      const dx = worldX - px
+      const dz = worldZ - pz
+      const dist = Math.sqrt(dx * dx + dz * dz)
+      if (dist < nearestDist) {
+        nearestDist = dist
         nearestId = planet.id
       }
     }
+
     return nearestId
-  }, [])
+  }, [solarSystem.scale])
 
-  // ── Dwell loop ────────────────────────────────────────────────────────
-  const runDwell = useCallback((planetId: string) => {
-    cancelAnimationFrame(dwellRafRef.current)
-    dwellPlanetRef.current = planetId
-    dwellStartRef.current = performance.now()
-
-    const tick = () => {
-      if (dwellPlanetRef.current !== planetId) return
-      const elapsed = (performance.now() - (dwellStartRef.current ?? 0)) / 1000
-      const progress = Math.min(elapsed / DWELL_TIME, 1)
-      dwellProgressRef.current = progress
-      setSolarSystem((prev) => ({ ...prev, laserDwellProgress: progress }))
-
-      if (progress >= 1) {
-        // Auto-select
-        setSolarSystem((prev) => ({
-          ...prev,
-          selectedPlanet: planetId,
-          laserTarget: null,
-          laserDwellProgress: 0,
-        }))
-        dwellPlanetRef.current = null
-        return
-      }
-      dwellRafRef.current = requestAnimationFrame(tick)
-    }
-    dwellRafRef.current = requestAnimationFrame(tick)
-  }, [])
-
-  const cancelDwell = useCallback(() => {
-    cancelAnimationFrame(dwellRafRef.current)
-    dwellPlanetRef.current = null
-    dwellProgressRef.current = 0
-    setSolarSystem((prev) => ({ ...prev, laserTarget: null, laserDwellProgress: 0 }))
-  }, [])
-
-  // ── Gesture → Solar System ────────────────────────────────────────────
+  // Gesture → Solar System logic
   useEffect(() => {
-    const { leftGesture, rightGesture, twoHandScale, hands, pinchDistance } = gestureState
+    const { gesture, hands, pinchDistance, handRotation } = gestureState
+    const prevGesture = prevGestureRef.current
+    prevGestureRef.current = gesture
 
-    // ── BOTH HANDS: scale ──────────────────────────────────────────────
-    if (twoHandScale) {
-      if (prevPalmDistRef.current === null) {
-        prevPalmDistRef.current = pinchDistance
-        baseScaleRef.current = solarSystem.scale
-      } else if (pinchDistance > 0.02) {
-        const ratio = pinchDistance / prevPalmDistRef.current
-        const newScale = Math.max(0.3, Math.min(3.5, baseScaleRef.current * ratio))
-        setSolarSystem((prev) => ({ ...prev, scale: newScale }))
-      }
-      // While two hands are out, freeze individual hand logic
-      return
-    } else {
-      // Freeze scale when hands stop/separate
-      if (prevPalmDistRef.current !== null) {
-        baseScaleRef.current = solarSystem.scale
-        prevPalmDistRef.current = null
-      }
-    }
-
-    // ── LEFT HAND: rotation control ────────────────────────────────────
-    // closed_palm → start auto-rotation | open_palm → stop immediately
-    if (leftGesture === 'closed_palm') {
-      setSolarSystem((prev) => {
-        if (prev.isAutoRotating) return prev
-        return { ...prev, isAutoRotating: true }
-      })
-    } else if (leftGesture === 'open_palm') {
-      setSolarSystem((prev) => {
-        if (!prev.isAutoRotating) return prev
-        return { ...prev, isAutoRotating: false }
-      })
-    }
-
-    // ── RIGHT HAND: laser point ────────────────────────────────────────
-    if (rightGesture === 'point') {
-      const rightHand = hands.find((h) => h.handedness === 'Right')
-      if (rightHand) {
-        const indexTip = rightHand.landmarks[LANDMARK_INDICES.INDEX_TIP]
-        const nearestId = findNearestPlanetToFinger(indexTip.x, indexTip.y, solarSystem.scale)
-
-        if (nearestId) {
-          // New target — start/continue dwell
-          if (dwellPlanetRef.current !== nearestId) {
-            runDwell(nearestId)
-            setSolarSystem((prev) => ({ ...prev, laserTarget: nearestId, laserDwellProgress: 0 }))
-          }
-        } else {
-          if (dwellPlanetRef.current !== null) cancelDwell()
-        }
-      }
-    } else {
-      // Right hand not pointing — cancel any dwell
-      if (dwellPlanetRef.current !== null) cancelDwell()
-    }
-
-    // ── Spawn: right open_palm when nothing spawned ────────────────────
-    if (rightGesture === 'open_palm' && !solarSystem.isSpawned && !solarSystem.isSpawning) {
+    // Open Palm → spawn
+    if (gesture === 'open_palm' && prevGesture !== 'open_palm' && !solarSystem.isSpawned && !solarSystem.isSpawning) {
       setSolarSystem((prev) => ({ ...prev, isSpawning: true }))
       setTimeout(() => {
         setSolarSystem((prev) => ({ ...prev, isSpawned: true, isSpawning: false }))
       }, 1400)
+      return
     }
 
+    // Fist → reset
+    if (gesture === 'fist' && prevGesture !== 'fist') {
+      setSolarSystem(INITIAL_SOLAR_SYSTEM)
+      initialPinchRef.current = null
+      return
+    }
+
+    // Point → highlight nearest planet using index fingertip position
+    if (gesture === 'point' && solarSystem.isSpawned) {
+      const primaryHand = hands[0]
+      if (primaryHand) {
+        const indexTip = primaryHand.landmarks[LANDMARK_INDICES.INDEX_TIP]
+        const nearestId = findNearestPlanet(indexTip.x, indexTip.y)
+        setSolarSystem((prev) => ({ ...prev, hoveredPlanet: nearestId }))
+      }
+    } else if (gesture !== 'point' && prevGesture === 'point') {
+      // Clear hover when leaving point gesture
+      setSolarSystem((prev) => ({ ...prev, hoveredPlanet: null }))
+    }
+
+    // Pinch → grab the hovered planet (or nearest)
+    if (gesture === 'pinch' && prevGesture !== 'pinch' && solarSystem.isSpawned) {
+      const pinchPt = gestureState.pinchPoint
+      if (pinchPt && !solarSystem.grabbedPlanet) {
+        const targetPlanet = solarSystem.hoveredPlanet ?? findNearestPlanet(pinchPt.x, pinchPt.y)
+        if (targetPlanet) {
+          const grabX = (0.5 - pinchPt.x) * 80 * solarSystem.scale
+          const grabZ = (pinchPt.y - 0.5) * 60 * solarSystem.scale
+          setSolarSystem((prev) => ({
+            ...prev,
+            grabbedPlanet: targetPlanet,
+            planetOffset: { x: grabX, y: 2, z: grabZ },
+          }))
+        }
+      }
+    }
+
+    // Update grabbed planet position while pinching
+    if (gesture === 'pinch' && solarSystem.grabbedPlanet && gestureState.pinchPoint) {
+      const px = gestureState.pinchPoint.x
+      const py = gestureState.pinchPoint.y
+      const worldX = (0.5 - px) * 80 * solarSystem.scale
+      const worldZ = (py - 0.5) * 60 * solarSystem.scale
+      setSolarSystem((prev) => ({
+        ...prev,
+        planetOffset: { x: worldX, y: 3, z: worldZ },
+      }))
+    }
+
+    // Release pinch → return planet to orbit
+    if (gesture !== 'pinch' && prevGesture === 'pinch' && solarSystem.grabbedPlanet) {
+      setSolarSystem((prev) => ({
+        ...prev,
+        grabbedPlanet: null,
+        planetOffset: null,
+      }))
+    }
+
+    // Two-hand pinch → resize
+    if (gesture === 'two_hand_pinch' && solarSystem.isSpawned) {
+      if (initialPinchRef.current === null) {
+        initialPinchRef.current = pinchDistance
+        initialScaleRef.current = solarSystem.scale
+      } else if (pinchDistance > 0.01) {
+        const ratio = pinchDistance / initialPinchRef.current
+        const newScale = Math.max(0.3, Math.min(3.0, initialScaleRef.current * ratio))
+        setSolarSystem((prev) => ({ ...prev, scale: newScale }))
+      }
+    } else {
+      initialPinchRef.current = null
+    }
+
+    // Open palm rotation → rotate system
+    if (gesture === 'open_palm' && solarSystem.isSpawned && hands.length > 0) {
+      setSolarSystem((prev) => ({ ...prev, rotation: handRotation * 2 }))
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gestureState])
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#00000a]">
-      {/* Layer 0: Star field */}
+    <div className="relative w-screen h-screen overflow-hidden bg-[#000008]">
+      {/* Layer 0: Star field background */}
       <SpaceBackground />
 
       {/* Layer 1: 3D Solar System */}
@@ -229,7 +216,7 @@ export default function UniverseX() {
         />
       </div>
 
-      {/* Layer 2: UI */}
+      {/* Layer 2: UI overlays */}
       <AnimatePresence>
         {!hasStarted && (
           <StartScreen
@@ -242,6 +229,14 @@ export default function UniverseX() {
 
       {hasStarted && (
         <>
+          {/* Hidden video element for MediaPipe */}
+          <video
+            ref={videoRef}
+            className="absolute opacity-0 pointer-events-none"
+            style={{ width: 1, height: 1, zIndex: -1 }}
+          />
+
+          {/* Top navigation */}
           <TopNav
             fps={fps}
             isTracking={gestureState.isTracking}
@@ -250,32 +245,36 @@ export default function UniverseX() {
             onSettings={() => {}}
           />
 
+          {/* Camera feed with hand overlay - top right corner */}
           <CameraFeed
             ref={videoRef}
             gestureState={gestureState}
             isTracking={gestureState.isTracking}
           />
 
+          {/* Bottom HUD */}
           <HUD
             gesture={gestureState}
             solarSystem={solarSystem}
             fps={fps}
           />
 
+          {/* Planet info overlay — left side when selected */}
           <PlanetInfoOverlay
-            planet={
-              solarSystem.selectedPlanet
-                ? PLANETS.find((p) => p.id === solarSystem.selectedPlanet) ?? null
-                : null
+            planet={solarSystem.selectedPlanet
+              ? PLANETS.find((p) => p.id === solarSystem.selectedPlanet) ?? null
+              : null
             }
             onClose={() => setSolarSystem((prev) => ({ ...prev, selectedPlanet: null }))}
           />
 
+          {/* Right side gesture guide */}
           <GestureGuide />
 
+          {/* Gesture toast notifications */}
           <GestureToast gesture={gestureState.gesture} />
 
-          {/* Spawn prompt */}
+          {/* Instructions if solar system not yet spawned */}
           <AnimatePresence>
             {!solarSystem.isSpawned && !solarSystem.isSpawning && (
               <motion.div
@@ -288,14 +287,14 @@ export default function UniverseX() {
               >
                 <div className="text-center">
                   <motion.p
-                    animate={{ opacity: [0.18, 0.45, 0.18] }}
-                    transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-                    className="text-2xl font-bold tracking-[0.2em] text-white/25 font-mono uppercase"
+                    animate={{ opacity: [0.2, 0.5, 0.2] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                    className="text-2xl font-bold tracking-[0.2em] text-white/30 font-mono uppercase"
                   >
-                    Open Right Palm to Spawn
+                    Open Palm to Spawn
                   </motion.p>
-                  <p className="text-xs text-cyan-400/15 font-mono mt-2 tracking-[0.3em]">
-                    Hold your right hand open toward the camera
+                  <p className="text-xs text-cyan-400/20 font-mono mt-2 tracking-[0.3em]">
+                    Point all five fingers at the screen
                   </p>
                 </div>
               </motion.div>
