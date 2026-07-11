@@ -54,20 +54,23 @@ export default function UniverseX() {
   const dwellRafRef = useRef<number>(0)
 
   // ── Start flow ────────────────────────────────────────────────────────
-  // If MediaPipe finishes loading after the user clicked, auto-start tracking.
+  // After hasStarted + isReady are both true AND the video element has mounted,
+  // call startTracking. We do this in an effect so React has had time to render
+  // CameraFeed (which mounts the <video> the ref points to).
   const hasStartedRef = useRef(false)
   useEffect(() => { if (hasStarted) hasStartedRef.current = true }, [hasStarted])
+
   useEffect(() => {
-    if (isReady && hasStartedRef.current) startTracking()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady])
+    if (!hasStarted || !isReady) return
+    // Small timeout lets React flush the DOM (mount <video>) before we grab it
+    const t = setTimeout(() => { startTracking() }, 100)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasStarted, isReady])
 
   const handleStart = useCallback(() => {
     setHasStarted(true)
-    // If MediaPipe is already ready when the user clicks, start immediately.
-    // If not, the isReady effect above will fire startTracking once it's done.
-    if (isReady) startTracking()
-  }, [isReady, startTracking])
+  }, [])
 
   // ── Planet callbacks (mouse / pointer events from Three.js) ──────────
   const handlePlanetHover = useCallback((id: string | null) => {

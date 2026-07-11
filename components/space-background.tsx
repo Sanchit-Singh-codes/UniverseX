@@ -44,7 +44,7 @@ export default function SpaceBackground() {
   const shootingStarsRef = useRef<ShootingStar[]>([])
   const nebulasRef = useRef<NebulaCloud[]>([])
   const animFrameRef = useRef<number>(0)
-  const timeRef = useRef(0)
+  const timeRef = useRef(0) // elapsed seconds
 
   const initStars = useCallback((w: number, h: number) => {
     // ~80% fewer stars — only ~450 bright ones
@@ -103,7 +103,7 @@ export default function SpaceBackground() {
       length: Math.random() * 100 + 60,
       opacity: 1,
       life: 0,
-      maxLife: Math.random() * 55 + 35,
+      maxLife: Math.random() * 0.9 + 0.5, // 0.5–1.4 seconds
     })
   }, [])
 
@@ -123,11 +123,14 @@ export default function SpaceBackground() {
     window.addEventListener('resize', resize)
 
     let shootingStarTimer = 0
+    let lastTime = performance.now()
 
-    const draw = () => {
+    const draw = (now: number) => {
+      const delta = Math.min((now - lastTime) / 1000, 0.05) // seconds, capped at 50ms
+      lastTime = now
       const w = canvas.width
       const h = canvas.height
-      timeRef.current += 1
+      timeRef.current += delta
 
       // Deep space gradient background
       const bg = ctx.createLinearGradient(0, 0, w * 0.3, h)
@@ -181,23 +184,23 @@ export default function SpaceBackground() {
       }
       ctx.globalAlpha = 1
 
-      // Shooting stars
-      shootingStarTimer++
-      if (shootingStarTimer > 240 + Math.random() * 360) {
+      // Shooting stars — spawn every 4–10 seconds
+      shootingStarTimer += delta
+      if (shootingStarTimer > 4 + Math.random() * 6) {
         shootingStarTimer = 0
         spawnShootingStar(w, h)
       }
       for (let i = shootingStarsRef.current.length - 1; i >= 0; i--) {
         const ss = shootingStarsRef.current[i]
-        ss.life++
+        ss.life += delta
         const progress = ss.life / ss.maxLife
         ss.opacity = progress < 0.2 ? progress / 0.2 : 1 - (progress - 0.2) / 0.8
         const dx = Math.cos(ss.angle) * ss.length
         const dy = Math.sin(ss.angle) * ss.length
         const tailX = ss.x - dx * 0.3
         const tailY = ss.y - dy * 0.3
-        ss.x += Math.cos(ss.angle) * ss.speed
-        ss.y += Math.sin(ss.angle) * ss.speed
+        ss.x += Math.cos(ss.angle) * ss.speed * delta * 60
+        ss.y += Math.sin(ss.angle) * ss.speed * delta * 60
         const grad = ctx.createLinearGradient(tailX, tailY, ss.x, ss.y)
         grad.addColorStop(0, `rgba(255,255,255,0)`)
         grad.addColorStop(0.7, `rgba(180,220,255,${ss.opacity * 0.45})`)
@@ -227,6 +230,7 @@ export default function SpaceBackground() {
       window.removeEventListener('resize', resize)
       cancelAnimationFrame(animFrameRef.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initStars, initNebulas, spawnShootingStar])
 
   return (

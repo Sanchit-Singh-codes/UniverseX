@@ -11,11 +11,11 @@ const { THUMB_TIP, INDEX_TIP, WRIST } = LANDMARK_INDICES
 // ─── Per-hand gesture helpers ─────────────────────────────────────────────────
 
 export function isOpenPalm(lm: HandLandmark[]): boolean {
+  // Require index + middle + ring extended. Pinky often semi-curls in natural hand.
   return (
     isFingerExtended(lm, 'index') &&
     isFingerExtended(lm, 'middle') &&
-    isFingerExtended(lm, 'ring') &&
-    isFingerExtended(lm, 'pinky')
+    isFingerExtended(lm, 'ring')
   )
 }
 
@@ -29,9 +29,10 @@ export function isClosedPalm(lm: HandLandmark[]): boolean {
 }
 
 export function isPointing(lm: HandLandmark[]): boolean {
-  // Index extended; ring + pinky curled. Middle can be slightly extended (natural point).
+  // Index extended; middle + ring + pinky all curled.
   return (
     isFingerExtended(lm, 'index') &&
+    !isFingerExtended(lm, 'middle') &&
     !isFingerExtended(lm, 'ring') &&
     !isFingerExtended(lm, 'pinky')
   )
