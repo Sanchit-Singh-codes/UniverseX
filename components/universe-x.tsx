@@ -107,27 +107,44 @@ export default function UniverseX() {
     return nearestId
   }, [solarSystem.scale])
 
-  // Gesture → Solar System logic: non-conflicting per-hand controls
+  // Gesture → Solar System logic: new 3-gesture model
+  const prevHandDistanceRef = useRef<number | null>(null)
+
   useEffect(() => {
-    const { leftGesture, rightGesture, rightIndex } = gestureState
+    const { leftGesture, rightGesture, hands } = gestureState
     if (!solarSystem.isSpawned) return
 
-    // Left closed palm → start continuous rotation
+    // LEFT HAND: Closed → rotate, Open → stop
     if (leftGesture === 'closed_palm') {
-      setSolarSystem((prev) => ({ ...prev, rotation: (prev.rotation + 0.01) % (Math.PI * 2) }))
+      setSolarSystem((prev) => ({ ...prev, rotation: (prev.rotation + 0.015) % (Math.PI * 2) }))
+    }
+    // Open palm stops rotation (no change to rotation, keeps current angle)
+
+    // BOTH HANDS: measure distance between hands for zoom control
+    if (hands.length === 2) {
+      const hand1 = hands[0]
+      const hand2 = hands[1]
+      if (hand1.landmarks.length > 0 && hand2.landmarks.length > 0) {
+        const p1 = hand1.landmarks[9] // palm center
+        const p2 = hand2.landmarks[9]
+        const currentDistance = Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z)
+
+        if (prevHandDistanceRef.current !== null) {
+          const delta = currentDistance - prevHandDistanceRef.current
+          // Spread apart (positive delta) → zoom in, closer (negative delta) → zoom out
+          const scaleDelta = delta * 0.5
+          setSolarSystem((prev) => ({
+            ...prev,
+            scale: Math.max(0.3, Math.min(3.0, prev.scale + scaleDelta)),
+          }))
+        }
+        prevHandDistanceRef.current = currentDistance
+      }
+    } else {
+      prevHandDistanceRef.current = null
     }
 
-    // Right closed palm → zoom in
-    if (rightGesture === 'closed_palm') {
-      setSolarSystem((prev) => ({ ...prev, scale: Math.min(3.0, prev.scale + 0.01) }))
-    }
-
-    // Right open palm → zoom out
-    if (rightGesture === 'open_palm') {
-      setSolarSystem((prev) => ({ ...prev, scale: Math.max(0.5, prev.scale - 0.01) }))
-    }
-
-    // Right point → cursor hover and dwell selection (handled in scene component)
+    // RIGHT HAND: Point gesture handled by scene component (cursor hover + dwell selection)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gestureState, solarSystem.isSpawned])
 
