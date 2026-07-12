@@ -1,35 +1,24 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import type { HandData, GestureState } from '@/lib/types'
-import {
-  FINGERTIP_INDICES,
-  HAND_CONNECTIONS,
-  getPalmCenter,
-  getLandmarkVelocity,
-} from '@/lib/hand-tracker'
-
-interface Trail {
-  x: number
-  y: number
-  opacity: number
-  size: number
-}
-
-const MAX_TRAIL = 16
+import type { GestureState } from '@/lib/types'
+import { HAND_CONNECTIONS, FINGERTIP_INDICES } from '@/lib/hand-tracker'
 
 interface HandOverlayProps {
   gesture: GestureState
-  width: number
-  height: number
 }
 
-export default function HandOverlay({ gesture, width, height }: HandOverlayProps) {
+export default function HandOverlay({ gesture }: HandOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const trailsRef = useRef<Map<number, Trail[]>>(new Map())
-  const prevLandmarksRef = useRef<{ x: number; y: number; z: number }[][]>([])
   const animRef = useRef<number>(0)
-  const timeRef = useRef(0)
+  const smoothedLandmarksRef = useRef<Map<number, Map<number, { x: number; y: number }>>>(new Map())
+
+  // Initialize smoothed landmarks map
+  useEffect(() => {
+    if (gesture.hands.length === 0) {
+      smoothedLandmarksRef.current.clear()
+    }
+  }, [gesture.hands.length])
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -38,165 +27,90 @@ export default function HandOverlay({ gesture, width, height }: HandOverlayProps
     if (!ctx) return
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    timeRef.current += 1
 
     if (!gesture.isTracking || gesture.hands.length === 0) {
-      trailsRef.current.clear()
       animRef.current = requestAnimationFrame(draw)
       return
     }
 
-    for (const hand of gesture.hands) {
-      const lm = hand.landmarks
-      const velocity = getLandmarkVelocity(
-        prevLandmarksRef.current[0] ?? null,
-        lm.map((l) => ({ x: l.x, y: l.y, z: l.z }))
-      )
-      const speedFactor = Math.min(velocity * 60, 1)
+    // Draw each hand
+    for (let handIdx = 0; handIdx < gesture.hands.length; handIdx++) {
+      const hand = gesture.hands[handIdx]
+      const landmarks = hand.landmarks
 
-      // Map normalized coords to canvas
-      const toX = (x: number) => (1 - x) * canvas.width // Mirror for natural feel
-      const toY = (y: number) => y * canvas.height
+      if (!smoothedLandmarksRef.current.has(handIdx)) {
+        smoothedLandmarksRef.current.set(handIdx, new Map())
+      }
+      const handSmoothed = smoothedLandmarksRef.current.get(handIdx)!
 
-      // Update trails for fingertips
-      for (const tipIdx of FINGERTIP_INDICES) {
-        const pt = lm[tipIdx]
-        const cx = toX(pt.x)
-        const cy = toY(pt.y)
+      // Convert normalized coords to screen coords (mirror horizontally)
+      const toScreenX = (normX: number) => (1 - normX) * canvas.width
+      const toScreenY = (normY: number) => normY * canvas.height
 
-        if (!trailsRef.current.has(tipIdx)) {
-          trailsRef.current.set(tipIdx, [])
+      // Smooth each landmark (interpolation for jitter removal)
+      const smoothedPts: { x: number; y: number }[] = []
+      for (let i = 0; i < landmarks.length; i++) {
+        const lm = landmarks[i]
+        const screenX = toScreenX(lm.x)
+        const screenY = toScreenY(lm.y)
+
+        if (!handSmoothed.has(i)) {
+          handSmoothed.set(i, { x: screenX, y: screenY })
         }
-        const trail = trailsRef.current.get(tipIdx)!
-        trail.unshift({ x: cx, y: cy, opacity: 0.6, size: 3 + speedFactor * 4 })
-        if (trail.length > MAX_TRAIL) trail.pop()
-        for (let i = 0; i < trail.length; i++) {
-          trail[i].opacity *= 0.82
-        }
+        const prev = handSmoothed.get(i)!
+        // Exponential smoothing: alpha = 0.4 for responsive-but-smooth feel
+        const alpha = 0.4
+        const smoothX = prev.x + (screenX - prev.x) * alpha
+        const smoothY = prev.y + (screenY - prev.y) * alpha
+        handSmoothed.set(i, { x: smoothX, y: smoothY })
+        smoothedPts.push({ x: smoothX, y: smoothY })
       }
 
-      // Draw connection lines (neon blue)
-      ctx.lineWidth = 1.2
+      // Draw connection lines (thin glowing cyan)
+      ctx.lineWidth = 1.5
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
       for (const [a, b] of HAND_CONNECTIONS) {
-        if (a >= lm.length || b >= lm.length) continue
-        const ax = toX(lm[a].x)
-        const ay = toY(lm[a].y)
-        const bx = toX(lm[b].x)
-        const by = toY(lm[b].y)
+        if (a >= smoothedPts.length || b >= smoothedPts.length) continue
+        const p1 = smoothedPts[a]
+        const p2 = smoothedPts[b]
 
-        const grad = ctx.createLinearGradient(ax, ay, bx, by)
-        grad.addColorStop(0, 'rgba(0, 150, 255, 0.7)')
-        grad.addColorStop(1, 'rgba(0, 245, 255, 0.7)')
+        // Gradient line from cyan to brighter cyan
+        const grad = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y)
+        grad.addColorStop(0, 'rgba(54, 217, 255, 0.6)')
+        grad.addColorStop(1, 'rgba(100, 240, 255, 0.8)')
         ctx.strokeStyle = grad
-        ctx.shadowColor = '#0066ff'
-        ctx.shadowBlur = 8
+        ctx.shadowColor = 'rgba(54, 217, 255, 0.8)'
+        ctx.shadowBlur = 6
         ctx.beginPath()
-        ctx.moveTo(ax, ay)
-        ctx.lineTo(bx, by)
+        ctx.moveTo(p1.x, p1.y)
+        ctx.lineTo(p2.x, p2.y)
         ctx.stroke()
-      }
-
-      ctx.shadowBlur = 0
-
-      // Draw fingertip trails
-      for (const tipIdx of FINGERTIP_INDICES) {
-        const trail = trailsRef.current.get(tipIdx)
-        if (!trail || trail.length < 2) continue
-        for (let i = 0; i < trail.length - 1; i++) {
-          const op = trail[i].opacity
-          if (op < 0.02) continue
-          ctx.strokeStyle = `rgba(0, 245, 255, ${op * 0.6})`
-          ctx.lineWidth = trail[i].size * 0.5 * (1 - i / trail.length)
-          ctx.shadowColor = '#00f5ff'
-          ctx.shadowBlur = 6
-          ctx.beginPath()
-          ctx.moveTo(trail[i].x, trail[i].y)
-          ctx.lineTo(trail[i + 1].x, trail[i + 1].y)
-          ctx.stroke()
-        }
         ctx.shadowBlur = 0
       }
 
-      // Draw joint dots (non-fingertip)
-      for (let i = 0; i < lm.length; i++) {
-        const pt = lm[i]
-        const cx = toX(pt.x)
-        const cy = toY(pt.y)
-        const isTip = FINGERTIP_INDICES.includes(i)
+      // Draw small glowing cyan dots on all 21 joints
+      for (let i = 0; i < smoothedPts.length; i++) {
+        const pt = smoothedPts[i]
+        const dotRadius = 2.0 // Small dots
+        const pulseAmount = Math.sin(Date.now() * 0.004 + i) * 0.3 + 0.7
+        const radius = dotRadius * pulseAmount
 
-        if (!isTip) {
-          ctx.shadowColor = '#0066ff'
-          ctx.shadowBlur = 8
-          ctx.fillStyle = 'rgba(0, 120, 255, 0.7)'
-          ctx.beginPath()
-          ctx.arc(cx, cy, 3, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.shadowBlur = 0
-        }
-      }
-
-      // Draw fingertip orbs
-      for (const tipIdx of FINGERTIP_INDICES) {
-        const pt = lm[tipIdx]
-        const cx = toX(pt.x)
-        const cy = toY(pt.y)
-        const glowSize = 10 + speedFactor * 8
-        const pulse = 1 + Math.sin(timeRef.current * 0.12 + tipIdx) * 0.15
-
-        // Outer glow
-        const outerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowSize * 2.5 * pulse)
-        outerGrad.addColorStop(0, `rgba(0, 245, 255, ${0.35 + speedFactor * 0.2})`)
-        outerGrad.addColorStop(0.4, `rgba(0, 200, 255, ${0.15 + speedFactor * 0.1})`)
-        outerGrad.addColorStop(1, 'rgba(0, 100, 255, 0)')
-        ctx.fillStyle = outerGrad
+        // Glow effect
+        ctx.shadowColor = 'rgba(54, 217, 255, 0.9)'
+        ctx.shadowBlur = 8
+        ctx.fillStyle = 'rgba(54, 217, 255, 0.9)'
         ctx.beginPath()
-        ctx.arc(cx, cy, glowSize * 2.5 * pulse, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Core orb
-        const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowSize * pulse)
-        coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)')
-        coreGrad.addColorStop(0.3, `rgba(100, 240, 255, 0.9)`)
-        coreGrad.addColorStop(0.8, `rgba(0, 180, 255, 0.6)`)
-        coreGrad.addColorStop(1, 'rgba(0, 100, 255, 0)')
-        ctx.shadowColor = '#00f5ff'
-        ctx.shadowBlur = 20 + speedFactor * 15
-        ctx.fillStyle = coreGrad
-        ctx.beginPath()
-        ctx.arc(cx, cy, glowSize * pulse, 0, Math.PI * 2)
+        ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2)
         ctx.fill()
         ctx.shadowBlur = 0
+
+        // Bright core
+        ctx.fillStyle = 'rgba(200, 245, 255, 1)'
+        ctx.beginPath()
+        ctx.arc(pt.x, pt.y, radius * 0.5, 0, Math.PI * 2)
+        ctx.fill()
       }
-
-      // Draw palm orb
-      const palm = getPalmCenter(lm)
-      const palmX = toX(palm.x)
-      const palmY = toY(palm.y)
-      const palmSize = 16 + speedFactor * 6
-      const palmPulse = 1 + Math.sin(timeRef.current * 0.08) * 0.12
-
-      const palmOuter = ctx.createRadialGradient(palmX, palmY, 0, palmX, palmY, palmSize * 3)
-      palmOuter.addColorStop(0, `rgba(0, 200, 255, ${0.2 + speedFactor * 0.15})`)
-      palmOuter.addColorStop(1, 'rgba(0, 50, 150, 0)')
-      ctx.fillStyle = palmOuter
-      ctx.beginPath()
-      ctx.arc(palmX, palmY, palmSize * 3 * palmPulse, 0, Math.PI * 2)
-      ctx.fill()
-
-      const palmCore = ctx.createRadialGradient(palmX, palmY, 0, palmX, palmY, palmSize)
-      palmCore.addColorStop(0, 'rgba(200, 245, 255, 0.7)')
-      palmCore.addColorStop(0.5, 'rgba(0, 200, 255, 0.5)')
-      palmCore.addColorStop(1, 'rgba(0, 100, 255, 0)')
-      ctx.shadowColor = '#00ccff'
-      ctx.shadowBlur = 25
-      ctx.fillStyle = palmCore
-      ctx.beginPath()
-      ctx.arc(palmX, palmY, palmSize * palmPulse, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.shadowBlur = 0
-
-      // Store for velocity calculation
-      prevLandmarksRef.current[0] = lm.map((l) => ({ x: l.x, y: l.y, z: l.z }))
     }
 
     animRef.current = requestAnimationFrame(draw)
@@ -207,13 +121,24 @@ export default function HandOverlay({ gesture, width, height }: HandOverlayProps
     return () => cancelAnimationFrame(animRef.current)
   }, [draw])
 
+  // Set canvas size to match window
+  useEffect(() => {
+    const handleResize = () => {
+      if (canvasRef.current) {
+        canvasRef.current.width = window.innerWidth
+        canvasRef.current.height = window.innerHeight
+      }
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   return (
     <canvas
       ref={canvasRef}
-      width={width}
-      height={height}
       className="absolute inset-0 pointer-events-none"
-      style={{ zIndex: 20 }}
+      style={{ zIndex: 35, background: 'transparent' }}
     />
   )
 }

@@ -3,11 +3,8 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
-import dynamic from 'next/dynamic'
 import type { GestureState, CameraStatus, ModelStatus } from '@/lib/types'
 import type { RefObject } from 'react'
-
-const HandOverlay = dynamic(() => import('./hand-overlay'), { ssr: false })
 
 interface CameraFeedProps {
   videoRef: RefObject<HTMLVideoElement | null>
@@ -61,7 +58,6 @@ export default function CameraFeed({ videoRef, gestureState, cameraStatus, model
               className="absolute inset-0 w-full h-full object-cover"
               style={{ transform: 'scaleX(-1)' }}
             />
-            <HandOverlay gesture={gestureState} width={W} height={H} />
             <div className="absolute top-1 left-1 w-3 h-3 border-t border-l border-primary/30" />
             <div className="absolute top-1 right-1 w-3 h-3 border-t border-r border-primary/30" />
             <div className="absolute bottom-1 left-1 w-3 h-3 border-b border-l border-primary/30" />
