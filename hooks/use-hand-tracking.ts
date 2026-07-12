@@ -129,6 +129,8 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
 
   const startTracking = useCallback(async () => {
     requestedRef.current = true
+    // Give React time to render the video element before requesting camera
+    await new Promise(resolve => setTimeout(resolve, 100))
     await startCamera()
   }, [startCamera])
 

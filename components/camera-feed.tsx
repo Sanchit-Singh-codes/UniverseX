@@ -104,14 +104,16 @@ export default function CameraFeed({ videoRef, gestureState, cameraStatus, model
           </button>
         </div>
         {showCamera && (
-          <div style={{ width: W, height: H }} className="relative bg-black">
+          <div style={{ width: W, height: H }} className="relative bg-black overflow-hidden">
             <video
               ref={videoRef}
               autoPlay
               muted
               playsInline
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ transform: 'scaleX(-1)' }}
+              width={W}
+              height={H}
+              className="absolute inset-0 w-full h-full object-cover display-block"
+              style={{ transform: 'scaleX(-1)', WebkitTransform: 'scaleX(-1)' }}
             />
             <canvas
               ref={canvasRef}
