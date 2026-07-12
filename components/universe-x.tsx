@@ -4,7 +4,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import SpaceBackground from './space-background'
-import HandOverlay from './hand-overlay'
+import CameraFeed from './camera-feed'
 import { TopNav } from './ui/top-nav'
 import { HUD } from './ui/hud'
 import { GestureGuide } from './ui/gesture-guide'
@@ -13,7 +13,7 @@ import { GestureToast } from './ui/gesture-toast'
 import { PlanetInfoOverlay } from './ui/planet-info-overlay'
 import { useHandTracking } from '@/hooks/use-hand-tracking'
 import { useFPS } from '@/hooks/use-fps'
-import type { SolarSystemState, GestureState } from '@/lib/types'
+import type { SolarSystemState } from '@/lib/types'
 import { PLANETS } from '@/lib/planet-data'
 
 const ThreeCanvas = dynamic(() => import('./three-canvas'), { ssr: false })
@@ -71,29 +71,6 @@ export default function UniverseX() {
     }
   }, [])
 
-  const findNearestPlanet = useCallback((normX: number, normY: number): string | null => {
-    const worldX = (0.5 - normX) * 80 * solarSystem.scale
-    const worldZ = (normY - 0.5) * 60 * solarSystem.scale
-
-    let nearestId: string | null = null
-    let nearestDist = Infinity
-
-    for (const planet of PLANETS) {
-      const angle = orbitAnglesRef.current[planet.id] ?? 0
-      const px = Math.cos(angle) * planet.orbitRadius * solarSystem.scale
-      const pz = Math.sin(angle) * planet.orbitRadius * solarSystem.scale
-      const dx = worldX - px
-      const dz = worldZ - pz
-      const dist = Math.sqrt(dx * dx + dz * dz)
-      if (dist < nearestDist) {
-        nearestDist = dist
-        nearestId = planet.id
-      }
-    }
-
-    return nearestId
-  }, [solarSystem.scale])
-
   // Gesture → Solar System logic: new 3-gesture model
   const prevHandDistanceRef = useRef<number | null>(null)
 
@@ -133,38 +110,21 @@ export default function UniverseX() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background">
-      {/* Layer 0: Live camera feed as background */}
-      {hasStarted && (
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ transform: 'scaleX(-1)', zIndex: 0 }}
+      {/* Layer 0: Star field background */}
+      <SpaceBackground />
+
+      {/* Layer 1: 3D Solar System */}
+      <div className="absolute inset-0" style={{ zIndex: 10 }}>
+        <ThreeCanvas
+          solarSystem={solarSystem}
+          gesture={gestureState}
+          onPlanetHover={handlePlanetHover}
+          onPlanetSelect={handlePlanetSelect}
+          onSystemUpdate={handleSystemUpdate}
         />
-      )}
+      </div>
 
-      {/* Layer 1: Star field background (visible if no camera) */}
-      {!hasStarted && <SpaceBackground />}
-
-      {/* Layer 2: 3D Solar System */}
-      {hasStarted && solarSystem.isSpawned && (
-        <div className="absolute inset-0" style={{ zIndex: 10 }}>
-          <ThreeCanvas
-            solarSystem={solarSystem}
-            gesture={gestureState}
-            onPlanetHover={handlePlanetHover}
-            onPlanetSelect={handlePlanetSelect}
-            onSystemUpdate={handleSystemUpdate}
-          />
-        </div>
-      )}
-
-      {/* Layer 3: Hand skeleton overlay (full screen) */}
-      {hasStarted && <HandOverlay gesture={gestureState} />}
-
-      {/* Layer 4: UI overlays */}
+      {/* Layer 2: Start Screen */}
       <AnimatePresence>
         {!hasStarted && (
           <StartScreen
@@ -191,6 +151,14 @@ export default function UniverseX() {
             gesture={gestureState}
             solarSystem={solarSystem}
             fps={fps}
+          />
+
+          {/* Small camera feed panel - top right corner */}
+          <CameraFeed
+            videoRef={videoRef}
+            gestureState={gestureState}
+            cameraStatus={cameraStatus}
+            modelStatus={modelStatus}
           />
 
           {/* Planet info overlay — left side when selected */}

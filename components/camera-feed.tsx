@@ -1,10 +1,11 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
-import type { GestureState, CameraStatus, ModelStatus } from '@/lib/types'
+import type { GestureState, CameraStatus, ModelStatus, HandLandmark } from '@/lib/types'
 import type { RefObject } from 'react'
+import { HAND_CONNECTIONS } from '@/lib/hand-tracker'
 
 interface CameraFeedProps {
   videoRef: RefObject<HTMLVideoElement | null>
@@ -15,8 +16,62 @@ interface CameraFeedProps {
 
 export default function CameraFeed({ videoRef, gestureState, cameraStatus, modelStatus }: CameraFeedProps) {
   const [showCamera, setShowCamera] = useState(true)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const W = 220, H = 160
   const isLive = cameraStatus === 'live' && gestureState.isTracking
+
+  // Draw hand skeleton on canvas
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Clear canvas
+    ctx.clearRect(0, 0, W, H)
+
+    // Draw hands if available
+    if (gestureState.hands.length > 0) {
+      for (const hand of gestureState.hands) {
+        if (hand.landmarks.length === 0) continue
+
+        // Draw connections (lines between joints)
+        ctx.strokeStyle = '#36d9ff'
+        ctx.lineWidth = 1.2
+        ctx.globalAlpha = 0.6
+
+        for (const connection of HAND_CONNECTIONS) {
+          const start = hand.landmarks[connection[0]]
+          const end = hand.landmarks[connection[1]]
+          if (start && end) {
+            ctx.beginPath()
+            ctx.moveTo(start.x * W, start.y * H)
+            ctx.lineTo(end.x * W, end.y * H)
+            ctx.stroke()
+          }
+        }
+
+        // Draw landmarks (dots on joints)
+        ctx.globalAlpha = 0.8
+        ctx.fillStyle = '#36d9ff'
+        for (const landmark of hand.landmarks) {
+          ctx.beginPath()
+          ctx.arc(landmark.x * W, landmark.y * H, 2.5, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Small glow effect
+          ctx.strokeStyle = '#36d9ff'
+          ctx.lineWidth = 0.8
+          ctx.globalAlpha = 0.3
+          ctx.beginPath()
+          ctx.arc(landmark.x * W, landmark.y * H, 4, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.globalAlpha = 0.8
+        }
+      }
+    }
+  }, [gestureState.hands])
 
   return (
     <motion.div
@@ -56,6 +111,13 @@ export default function CameraFeed({ videoRef, gestureState, cameraStatus, model
               muted
               playsInline
               className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: 'scaleX(-1)' }}
+            />
+            <canvas
+              ref={canvasRef}
+              width={W}
+              height={H}
+              className="absolute inset-0 w-full h-full"
               style={{ transform: 'scaleX(-1)' }}
             />
             <div className="absolute top-1 left-1 w-3 h-3 border-t border-l border-primary/30" />
