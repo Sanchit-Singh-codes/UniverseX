@@ -36,6 +36,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
   const animFrameRef = useRef<number>(0)
   const lastVideoTimeRef = useRef(-1)
   const gestureHistoryRef = useRef<string[]>([])
+  const pendingStartRef = useRef(false)
   const HISTORY_SIZE = 5
 
   const getStableGesture = useCallback((newGesture: string): string => {
@@ -80,6 +81,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
         if (!cancelled) {
           landmarkerRef.current = landmarker
           setIsReady(true)
+          // pendingStartRef is checked by startTracking via a separate effect below
         }
       } catch (err) {
         console.error('[v0] HandLandmarker init error:', err)
@@ -91,7 +93,17 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     return () => { cancelled = true }
   }, [])
 
-  const startTracking = useCallback(async () => {
+  // When the model finishes loading, auto-start if the user already clicked
+  useEffect(() => {
+    if (isReady && pendingStartRef.current) {
+      pendingStartRef.current = false
+      startCameraAndDetect()
+    }
+  // startCameraAndDetect is stable, isReady is the trigger
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady])
+
+  const startCameraAndDetect = useCallback(async () => {
     const video = videoRef.current
     if (!video || !landmarkerRef.current) return
 
@@ -102,7 +114,8 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       video.srcObject = stream
       await video.play()
     } catch (err) {
-      setError('Camera access denied')
+      console.error('[v0] Camera access error:', err)
+      setError('Camera access denied. Please allow camera permission and reload.')
       return
     }
 
@@ -182,8 +195,18 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
     animFrameRef.current = requestAnimationFrame(detect)
   }, [videoRef, getStableGesture])
 
+  // Public API: if landmarker is ready, start immediately; otherwise queue it
+  const startTracking = useCallback(async () => {
+    if (landmarkerRef.current) {
+      await startCameraAndDetect()
+    } else {
+      pendingStartRef.current = true
+    }
+  }, [startCameraAndDetect])
+
   const stopTracking = useCallback(() => {
     cancelAnimationFrame(animFrameRef.current)
+    pendingStartRef.current = false
     const video = videoRef.current
     if (video?.srcObject) {
       const tracks = (video.srcObject as MediaStream).getTracks()
