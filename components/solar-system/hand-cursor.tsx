@@ -1,10 +1,8 @@
 'use client'
 
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { PLANETS } from '@/lib/planet-data'
-import type { HandLandmark } from '@/lib/types'
 
 interface HandCursorProps {
   indexPosition: { x: number; y: number } | null
@@ -15,91 +13,109 @@ interface HandCursorProps {
 export function HandCursor({ indexPosition, onHover, onDoubleClick }: HandCursorProps) {
   const { camera, scene } = useThree()
   const cursorMeshRef = useRef<THREE.Mesh>(null!)
+  const glowMeshRef = useRef<THREE.Mesh>(null!)
   const smoothedPosRef = useRef(new THREE.Vector3())
   const raycasterRef = useRef(new THREE.Raycaster())
+  
+  // Dwell tracking
   const dwellTimerRef = useRef<{ planet: string; time: number } | null>(null)
   const lastHoveredRef = useRef<string | null>(null)
   const lastIndexPosRef = useRef<{ x: number; y: number } | null>(null)
+  
   const DWELL_TIME = 1.0 // 1 second
   const MOVEMENT_TOLERANCE = 0.02 // 2% of screen
 
-  // Create cursor geometry and material
-  const { geometry, material } = useMemo(() => {
-    const geo = new THREE.SphereGeometry(0.5, 16, 16) // 8-10px will be scaled by camera distance
-    const mat = new THREE.MeshBasicMaterial({
+  // Create cursor sphere
+  const cursorMaterial = useMemo(() => {
+    return new THREE.MeshBasicMaterial({
       color: '#36d9ff',
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       fog: false,
     })
-    return { geometry: geo, material: mat }
   }, [])
 
   // Create glow halo
-  const glowMesh = useRef<THREE.Mesh>(null!)
-  const { glowGeometry, glowMaterial } = useMemo(() => {
-    const geo = new THREE.SphereGeometry(1.2, 16, 16)
-    const mat = new THREE.MeshBasicMaterial({
+  const glowMaterial = useMemo(() => {
+    return new THREE.MeshBasicMaterial({
       color: '#36d9ff',
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.25,
       fog: false,
       side: THREE.BackSide,
     })
-    return { glowGeometry: geo, glowMaterial: mat }
   }, [])
 
-  useFrame(() => {
+  useFrame(({ camera, scene }, delta) => {
+    // Hide cursor if no hand detected
     if (!indexPosition) {
       if (cursorMeshRef.current) cursorMeshRef.current.visible = false
-      if (glowMesh.current) glowMesh.current.visible = false
+      if (glowMeshRef.current) glowMeshRef.current.visible = false
       return
     }
 
+    // Show cursor
     if (cursorMeshRef.current) cursorMeshRef.current.visible = true
-    if (glowMesh.current) glowMesh.current.visible = true
+    if (glowMeshRef.current) glowMeshRef.current.visible = true
 
-    // Normalize screen coordinates to NDC (-1 to 1)
-    const ndcCoords = new THREE.Vector2(indexPosition.x * 2 - 1, -(indexPosition.y * 2 - 1))
+    // Convert normalized screen coordinates to NDC
+    const ndcCoords = new THREE.Vector2(
+      indexPosition.x * 2 - 1,
+      -(indexPosition.y * 2 - 1)
+    )
 
-    // Convert NDC to world position at a fixed distance from camera
-    const worldPos = new THREE.Vector3(ndcCoords.x, ndcCoords.y, 0.5)
-    worldPos.unproject(camera)
-    const direction = worldPos.sub(camera.position).normalize()
-    const distance = 100 // Distance from camera where cursor appears
-    const targetPos = camera.position.clone().add(direction.multiplyScalar(distance))
+    // Create ray from camera through screen point
+    raycasterRef.current.setFromCamera(ndcCoords, camera)
+    const rayOrigin = raycasterRef.current.ray.origin
+    const rayDir = raycasterRef.current.ray.direction
 
-    // Smooth interpolation (exponential moving average)
-    const alpha = 0.3 // Smoothing factor
-    smoothedPosRef.current.lerp(targetPos, alpha)
+    // Position cursor at fixed distance along ray
+    const cursorDistance = 100
+    const targetPos = new THREE.Vector3()
+      .copy(rayOrigin)
+      .addScaledVector(rayDir, cursorDistance)
+
+    // Smooth interpolation
+    smoothedPosRef.current.lerp(targetPos, 0.25)
 
     // Update cursor position
     if (cursorMeshRef.current) {
       cursorMeshRef.current.position.copy(smoothedPosRef.current)
-      // Scale cursor so it appears ~8-10px on screen
-      const fov = (camera as THREE.PerspectiveCamera).fov ?? 50
-      const screenScale = distance * Math.tan((fov * Math.PI) / 360) / (window.innerHeight / 2)
-      cursorMeshRef.current.scale.setScalar(screenScale * 0.15)
+
+      // Scale based on distance and camera FOV
+      const fov = (camera as THREE.PerspectiveCamera).fov || 50
+      const height = 2 * Math.tan((fov * Math.PI) / 360) * cursorDistance
+      const screenScale = height / window.innerHeight
+      cursorMeshRef.current.scale.setScalar(screenScale * 0.12)
     }
 
     // Update glow halo
-    if (glowMesh.current) {
-      glowMesh.current.position.copy(smoothedPosRef.current)
-      const fov = (camera as THREE.PerspectiveCamera).fov ?? 50
-      const screenScale = distance * Math.tan((fov * Math.PI) / 360) / (window.innerHeight / 2)
-      glowMesh.current.scale.setScalar(screenScale * 0.35)
+    if (glowMeshRef.current) {
+      glowMeshRef.current.position.copy(smoothedPosRef.current)
+      const fov = (camera as THREE.PerspectiveCamera).fov || 50
+      const height = 2 * Math.tan((fov * Math.PI) / 360) * cursorDistance
+      const screenScale = height / window.innerHeight
+      glowMeshRef.current.scale.setScalar(screenScale * 0.3)
     }
 
-    // Raycast from camera through cursor to detect planets
-    raycasterRef.current.setFromCamera(ndcCoords, camera)
-    const planetMeshes = scene.children
-      .filter((child) => child.userData.isPlanet)
-      .map((group) => group.children.find((m) => m instanceof THREE.Mesh) || group)
+    // Raycast to find intersected planets
+    const intersects = raycasterRef.current.intersectObjects(scene.children, true)
+    let hoveredPlanet: string | null = null
 
-    const intersects = raycasterRef.current.intersectObjects(planetMeshes, true)
-    const hoveredPlanet = intersects.length > 0 ? intersects[0].object.userData.planetId : null
+    for (const intersection of intersects) {
+      const obj = intersection.object
+      // Check if object or its parent has planetId
+      if (obj.userData?.planetId) {
+        hoveredPlanet = obj.userData.planetId
+        break
+      }
+      if (obj.parent?.userData?.planetId) {
+        hoveredPlanet = obj.parent.userData.planetId
+        break
+      }
+    }
 
-    // Handle dwell timer and hover
+    // Track cursor movement
     const currentIndex = indexPosition
     const movedTooMuch =
       lastIndexPosRef.current &&
@@ -108,12 +124,13 @@ export function HandCursor({ indexPosition, onHover, onDoubleClick }: HandCursor
         currentIndex.y - lastIndexPosRef.current.y
       ) > MOVEMENT_TOLERANCE
 
+    // Update dwell timer
     if (hoveredPlanet && hoveredPlanet === lastHoveredRef.current && !movedTooMuch) {
       // Cursor stayed on same planet
-      if (dwellTimerRef.current && dwellTimerRef.current.planet === hoveredPlanet) {
-        dwellTimerRef.current.time += 0.016 // ~60 FPS
+      if (dwellTimerRef.current?.planet === hoveredPlanet) {
+        dwellTimerRef.current.time += delta
         if (dwellTimerRef.current.time >= DWELL_TIME) {
-          // Trigger double-click animation
+          // Trigger zoom animation
           onDoubleClick(hoveredPlanet)
           dwellTimerRef.current = null
           lastIndexPosRef.current = null
@@ -122,11 +139,11 @@ export function HandCursor({ indexPosition, onHover, onDoubleClick }: HandCursor
         dwellTimerRef.current = { planet: hoveredPlanet, time: 0 }
       }
     } else {
-      // Cursor moved or changed planet
+      // Reset timer if moved or planet changed
       dwellTimerRef.current = null
     }
 
-    // Update hover state
+    // Emit hover event if planet changed
     if (hoveredPlanet !== lastHoveredRef.current) {
       onHover(hoveredPlanet)
       lastHoveredRef.current = hoveredPlanet
@@ -137,8 +154,18 @@ export function HandCursor({ indexPosition, onHover, onDoubleClick }: HandCursor
 
   return (
     <group>
-      <mesh ref={cursorMeshRef} geometry={geometry} material={material} />
-      <mesh ref={glowMesh} geometry={glowGeometry} material={glowMaterial} />
+      <mesh
+        ref={cursorMeshRef}
+        material={cursorMaterial}
+      >
+        <sphereGeometry args={[0.5, 16, 16]} />
+      </mesh>
+      <mesh
+        ref={glowMeshRef}
+        material={glowMaterial}
+      >
+        <sphereGeometry args={[1.2, 16, 16]} />
+      </mesh>
     </group>
   )
 }
