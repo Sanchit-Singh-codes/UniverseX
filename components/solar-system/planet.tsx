@@ -56,23 +56,25 @@ function AtmosphereGlow({ radius, color }: { radius: number; color: string }) {
 }
 
 function OrbitRing({ radius, hovered, selected }: { radius: number; hovered: boolean; selected: boolean }) {
-  const mat = useMemo(() => new THREE.LineBasicMaterial({
-    color: selected ? '#00f5ff' : hovered ? '#4db8ff' : '#1a3a5c',
-    transparent: true,
-    opacity: selected ? 0.7 : hovered ? 0.5 : 0.2,
-    linewidth: 1,
-  }), [hovered, selected])
+  const color   = selected ? '#00ffff' : hovered ? '#88ddff' : '#2266aa'
+  const opacity = selected ? 0.95 : hovered ? 0.75 : 0.45
 
-  const points = useMemo(() => {
+  const mat = useMemo(() => new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    linewidth: 2,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [color, opacity])
+
+  const geo = useMemo(() => {
     const pts: THREE.Vector3[] = []
     for (let i = 0; i <= 128; i++) {
       const a = (i / 128) * Math.PI * 2
       pts.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius))
     }
-    return pts
+    return new THREE.BufferGeometry().setFromPoints(pts)
   }, [radius])
-
-  const geo = useMemo(() => new THREE.BufferGeometry().setFromPoints(points), [points])
 
   return <lineLoop geometry={geo} material={mat} />
 }
@@ -128,7 +130,7 @@ export function Planet({
   const mat = useMemo(() => new THREE.MeshStandardMaterial({
     color: new THREE.Color(data.color),
     emissive: new THREE.Color(data.emissive ?? '#000000'),
-    emissiveIntensity: 0.3,
+    emissiveIntensity: 0.6,
     roughness: data.roughness ?? 0.8,
     metalness: data.metalness ?? 0.1,
   }), [data])

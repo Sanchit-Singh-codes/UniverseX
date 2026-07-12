@@ -229,13 +229,6 @@ export default function UniverseX() {
 
       {hasStarted && (
         <>
-          {/* Hidden video element for MediaPipe */}
-          <video
-            ref={videoRef}
-            className="absolute opacity-0 pointer-events-none"
-            style={{ width: 1, height: 1, zIndex: -1 }}
-          />
-
           {/* Top navigation */}
           <TopNav
             fps={fps}

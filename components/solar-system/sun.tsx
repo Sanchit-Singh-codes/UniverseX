@@ -18,10 +18,10 @@ export function Sun({ radius, visible }: SunProps) {
 
   const sunMaterial = useMemo(() => {
     return new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#fff3a8'),
-      emissive: new THREE.Color('#ff6600'),
-      emissiveIntensity: 2.5,
-      roughness: 0.3,
+      color: new THREE.Color('#fff5c0'),
+      emissive: new THREE.Color('#ff7700'),
+      emissiveIntensity: 4.0,
+      roughness: 0.2,
       metalness: 0.0,
     })
   }, [])
@@ -87,10 +87,10 @@ export function Sun({ radius, visible }: SunProps) {
     <group>
       {/* Point light from sun */}
       <pointLight
-        color="#ffcc66"
-        intensity={180}
-        distance={200}
-        decay={1.2}
+        color="#ffdd88"
+        intensity={400}
+        distance={400}
+        decay={1.0}
         castShadow
         shadow-mapSize={[1024, 1024]}
       />

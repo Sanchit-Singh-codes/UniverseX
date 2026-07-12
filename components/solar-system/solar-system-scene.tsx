@@ -124,8 +124,8 @@ export function SolarSystemScene({
   )
 
   // Camera target for planet focus
-  const cameraTarget = useRef<THREE.Vector3>(new THREE.Vector3(0, 8, 40))
-  const cameraPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 8, 40))
+  const cameraTarget = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0))
+  const cameraPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 35, 90))
 
   // Animated spawn scale — spring from 0 to target
   const animatedScaleRef = useRef(0.001)
@@ -160,7 +160,7 @@ export function SolarSystemScene({
       }
     } else {
       cameraTarget.current.set(0, 0, 0)
-      cameraPos.current.set(0, 18, 55)
+      cameraPos.current.set(0, 35, 90)
     }
 
     camera.position.lerp(cameraPos.current, 0.03)
@@ -171,7 +171,7 @@ export function SolarSystemScene({
     <group ref={groupRef}>
       <SpaceDust />
       <SpawnParticles active={solarSystem.isSpawning} />
-      <ambientLight intensity={0.06} color="#112244" />
+      <ambientLight intensity={0.35} color="#223366" />
       <Sun radius={SUN_DATA.radius} visible={solarSystem.isSpawned} />
 
       {PLANETS.map((planet) => (

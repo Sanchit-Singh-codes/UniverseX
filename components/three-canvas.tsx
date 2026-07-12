@@ -23,7 +23,7 @@ export default function ThreeCanvas({
 }: ThreeCanvasProps) {
   return (
     <Canvas
-      camera={{ position: [0, 18, 55], fov: 50, near: 0.1, far: 1000 }}
+      camera={{ position: [0, 35, 90], fov: 55, near: 0.1, far: 1000 }}
       gl={{
         antialias: true,
         alpha: true,
@@ -34,7 +34,7 @@ export default function ThreeCanvas({
       style={{ background: 'transparent' }}
       className="absolute inset-0"
     >
-      <fog attach="fog" args={['#000008', 80, 260]} />
+      <fog attach="fog" args={['#000008', 120, 380]} />
 
       <SolarSystemScene
         solarSystem={solarSystem}
