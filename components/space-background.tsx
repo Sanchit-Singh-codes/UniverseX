@@ -46,7 +46,7 @@ export default function SpaceBackground() {
 
   const initStars = useCallback((w: number, h: number) => {
     const stars: Star[] = []
-    for (let i = 0; i < 2200; i++) {
+    for (let i = 0; i < 400; i++) {
       stars.push({
         x: Math.random() * w,
         y: Math.random() * h,
