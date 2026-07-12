@@ -231,7 +231,7 @@ export function Planet({
   }
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} userData={{ isPlanet: true, planetId: data.id }}>
       <OrbitDust
         radius={data.orbitRadius * systemScale}
         particleCount={120}
@@ -243,6 +243,7 @@ export function Planet({
         material={mat}
         castShadow
         receiveShadow
+        userData={{ planetId: data.id }}
         onPointerEnter={(e) => { e.stopPropagation(); onHover(data.id) }}
         onPointerLeave={() => onHover(null)}
         onClick={handlePlanetClick}

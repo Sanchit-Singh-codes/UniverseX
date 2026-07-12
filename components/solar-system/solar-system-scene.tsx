@@ -5,6 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Sun } from './sun'
 import { Planet } from './planet'
+import { HandCursor } from './hand-cursor'
 import { PLANETS, SUN_DATA } from '@/lib/planet-data'
 import type { SolarSystemState, GestureState } from '@/lib/types'
 
@@ -258,6 +259,14 @@ export function SolarSystemScene({
           orbitAngleRef={orbitAngles.current[planet.id] as React.MutableRefObject<number>}
         />
       ))}
+
+      {gesture.rightIndex && (
+        <HandCursor
+          indexPosition={gesture.rightIndex}
+          onHover={onPlanetHover}
+          onDoubleClick={handlePlanetZoom}
+        />
+      )}
     </group>
   )
 }
