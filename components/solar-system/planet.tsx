@@ -16,6 +16,7 @@ interface PlanetProps {
   systemScale: number
   onHover: (id: string | null) => void
   onSelect: (id: string | null) => void
+  onDoubleClick?: (id: string) => void
   orbitAngleRef: { current: number }
 }
 
@@ -99,6 +100,7 @@ export function Planet({
   systemScale,
   onHover,
   onSelect,
+  onDoubleClick,
   orbitAngleRef,
 }: PlanetProps) {
   const groupRef = useRef<THREE.Group>(null!)
@@ -201,6 +203,33 @@ export function Planet({
     }
   })
 
+  // Double-click detection
+  const clickTimestampRef = useRef(0)
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  const handlePlanetClick = (e: any) => {
+    e.stopPropagation()
+    const now = Date.now()
+    const timeDiff = now - clickTimestampRef.current
+    clickTimestampRef.current = now
+
+    // Clear any pending timeout
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current)
+    }
+
+    if (timeDiff < 350 && !isSelected) {
+      // Double-click: trigger cinematic zoom animation
+      onDoubleClick?.(data.id)
+      onSelect(data.id)
+    } else {
+      // Single click: just highlight (select)
+      clickTimeoutRef.current = setTimeout(() => {
+        onSelect(data.id)
+      }, 150)
+    }
+  }
+
   return (
     <group ref={groupRef}>
       <OrbitDust
@@ -216,7 +245,7 @@ export function Planet({
         receiveShadow
         onPointerEnter={(e) => { e.stopPropagation(); onHover(data.id) }}
         onPointerLeave={() => onHover(null)}
-        onClick={(e) => { e.stopPropagation(); onSelect(data.id) }}
+        onClick={handlePlanetClick}
       >
         <sphereGeometry args={[data.radius, 48, 48]} />
       </mesh>

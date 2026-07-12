@@ -108,6 +108,9 @@ function SpaceDust() {
   return <points ref={ref} geometry={geo} material={mat} />
 }
 
+// Easing function for cinematic motion (ease-out cubic)
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3)
+
 export function SolarSystemScene({
   solarSystem,
   gesture,
@@ -123,12 +126,40 @@ export function SolarSystemScene({
     Object.fromEntries(PLANETS.map((p) => [p.id, { current: Math.random() * Math.PI * 2 }]))
   )
 
-  // Camera target for planet focus
-  const cameraTarget = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0))
-  const cameraPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 50, 140))
+  // Camera animation state
+  const cameraAnimationRef = useRef({ isAnimating: false, duration: 0, elapsed: 0 })
+  const cameraStartPosRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 50, 140))
+  const cameraEndPosRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 50, 140))
+  const cameraStartTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0))
+  const cameraEndTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0))
 
   // Animated spawn scale — spring from 0 to target
   const animatedScaleRef = useRef(0.001)
+
+  // Handler for planet double-click (starts cinematic zoom)
+  const handlePlanetZoom = useCallback((planetId: string) => {
+    const planet = PLANETS.find((p) => p.id === planetId)
+    if (!planet) return
+
+    const angle = orbitAngles.current[planetId]?.current ?? 0
+    const px = Math.cos(angle) * planet.orbitRadius * solarSystem.scale
+    const pz = Math.sin(angle) * planet.orbitRadius * solarSystem.scale
+
+    // Store current camera state as animation start
+    cameraStartPosRef.current.copy(camera.position)
+    cameraStartTargetRef.current.copy(new THREE.Vector3(0, 0, 0))
+    camera.getWorldDirection(cameraStartTargetRef.current)
+
+    // Set animation end positions
+    cameraEndTargetRef.current.set(px, planet.radius * 0.5, pz)
+    const dist = planet.radius * 6.5 + 2
+    cameraEndPosRef.current.set(px + dist, planet.radius * 2, pz + dist)
+
+    // Start animation
+    cameraAnimationRef.current.isAnimating = true
+    cameraAnimationRef.current.duration = 2.0
+    cameraAnimationRef.current.elapsed = 0
+  }, [solarSystem.scale, camera])
 
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime
@@ -147,28 +178,65 @@ export function SolarSystemScene({
       groupRef.current.scale.set(s, s, s)
     }
 
-    // Camera smooth motion
+    // Camera animation with cinematic easing
+    const animState = cameraAnimationRef.current
+    if (animState.isAnimating) {
+      animState.elapsed += delta
+      const progress = Math.min(animState.elapsed / animState.duration, 1)
+      const eased = easeOutCubic(progress)
+
+      // Interpolate camera position and target with easing
+      camera.position.lerpVectors(cameraStartPosRef.current, cameraEndPosRef.current, eased)
+      const currentTarget = new THREE.Vector3().lerpVectors(cameraStartTargetRef.current, cameraEndTargetRef.current, eased)
+      camera.lookAt(currentTarget)
+
+      // Animation complete
+      if (progress >= 1) {
+        animState.isAnimating = false
+      }
+    } else {
+      // Default smooth follow
+      camera.position.lerp(cameraEndPosRef.current, 0.05)
+      camera.lookAt(cameraEndTargetRef.current)
+    }
+
+    // Update camera end positions based on selection
     if (solarSystem.selectedPlanet) {
       const planet = PLANETS.find((p) => p.id === solarSystem.selectedPlanet)
       if (planet) {
         const angle = orbitAngles.current[planet.id]?.current ?? 0
         const px = Math.cos(angle) * planet.orbitRadius * solarSystem.scale
         const pz = Math.sin(angle) * planet.orbitRadius * solarSystem.scale
-        cameraTarget.current.set(px, 0, pz)
-        const dist = planet.radius * 8 + 4
-        cameraPos.current.set(px + dist, planet.radius * 3, pz + dist)
+        cameraEndTargetRef.current.set(px, planet.radius * 0.5, pz)
+        const dist = planet.radius * 6.5 + 2
+        cameraEndPosRef.current.set(px + dist, planet.radius * 2, pz + dist)
       }
     } else {
-      cameraTarget.current.set(0, 0, 0)
-      cameraPos.current.set(0, 50, 140)
+      cameraEndTargetRef.current.set(0, 0, 0)
+      cameraEndPosRef.current.set(0, 50, 140)
     }
-
-    camera.position.lerp(cameraPos.current, 0.03)
-    camera.lookAt(cameraTarget.current)
   })
 
+  const handleEmptySpaceClick = () => {
+    // Return to full system view
+    if (solarSystem.selectedPlanet) {
+      cameraAnimationRef.current.isAnimating = true
+      cameraAnimationRef.current.duration = 1.8
+      cameraAnimationRef.current.elapsed = 0
+
+      cameraStartPosRef.current.copy(camera.position)
+      cameraStartTargetRef.current.copy(new THREE.Vector3(0, 0, 0))
+      camera.getWorldDirection(cameraStartTargetRef.current)
+
+      cameraEndTargetRef.current.set(0, 0, 0)
+      cameraEndPosRef.current.set(0, 50, 140)
+
+      onPlanetSelect(null)
+    }
+  }
+
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} onClick={handleEmptySpaceClick}>
       <SpaceDust />
       <SpawnParticles active={solarSystem.isSpawning} />
       <ambientLight intensity={0.35} color="#223366" />
@@ -186,6 +254,7 @@ export function SolarSystemScene({
           systemScale={solarSystem.scale}
           onHover={onPlanetHover}
           onSelect={onPlanetSelect}
+          onDoubleClick={handlePlanetZoom}
           orbitAngleRef={orbitAngles.current[planet.id] as React.MutableRefObject<number>}
         />
       ))}
