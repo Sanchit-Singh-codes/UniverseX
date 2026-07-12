@@ -31,8 +31,31 @@ const INITIAL_SOLAR_SYSTEM: SolarSystemState = {
 }
 
 export default function UniverseX() {
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const [hasStarted, setHasStarted] = useState(false)
+
+  // Create the video element once imperatively so it is never unmounted by React
+  useEffect(() => {
+    if (videoRef.current) return
+    const video = document.createElement('video')
+    video.autoplay = true
+    video.muted = true
+    video.playsInline = true
+    video.setAttribute('playsinline', '')
+    video.style.position = 'fixed'
+    video.style.top = '0'
+    video.style.left = '0'
+    video.style.width = '1px'
+    video.style.height = '1px'
+    video.style.opacity = '0'
+    video.style.pointerEvents = 'none'
+    video.style.zIndex = '-1'
+    document.body.appendChild(video)
+    videoRef.current = video
+    return () => {
+      if (video.parentElement) video.parentElement.removeChild(video)
+    }
+  }, [])
   const [solarSystem, setSolarSystem] = useState<SolarSystemState>(INITIAL_SOLAR_SYSTEM)
   const fps = useFPS()
 
@@ -240,7 +263,7 @@ export default function UniverseX() {
 
           {/* Camera feed with hand overlay - top right corner */}
           <CameraFeed
-            ref={videoRef}
+            videoRef={videoRef}
             gestureState={gestureState}
             isTracking={gestureState.isTracking}
           />
