@@ -4,6 +4,7 @@ import { useRef, useMemo, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { PlanetData } from '@/lib/types'
+import { OrbitDust } from './orbit-dust'
 
 interface PlanetProps {
   data: PlanetData
@@ -55,29 +56,7 @@ function AtmosphereGlow({ radius, color }: { radius: number; color: string }) {
   )
 }
 
-function OrbitRing({ radius, hovered, selected }: { radius: number; hovered: boolean; selected: boolean }) {
-  const color   = selected ? '#00ffff' : hovered ? '#88ddff' : '#2266aa'
-  const opacity = selected ? 0.95 : hovered ? 0.75 : 0.45
 
-  const mat = useMemo(() => new THREE.LineBasicMaterial({
-    color,
-    transparent: true,
-    opacity,
-    linewidth: 2,
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [color, opacity])
-
-  const geo = useMemo(() => {
-    const pts: THREE.Vector3[] = []
-    for (let i = 0; i <= 128; i++) {
-      const a = (i / 128) * Math.PI * 2
-      pts.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius))
-    }
-    return new THREE.BufferGeometry().setFromPoints(pts)
-  }, [radius])
-
-  return <lineLoop geometry={geo} material={mat} />
-}
 
 function Moon({ planetRef }: { planetRef: React.RefObject<THREE.Group | null> }) {
   const moonRef = useRef<THREE.Mesh>(null)
@@ -224,10 +203,10 @@ export function Planet({
 
   return (
     <group ref={groupRef}>
-      <OrbitRing
+      <OrbitDust
         radius={data.orbitRadius * systemScale}
-        hovered={isHovered}
-        selected={isSelected}
+        particleCount={120}
+        color="#ffffff"
       />
 
       <mesh

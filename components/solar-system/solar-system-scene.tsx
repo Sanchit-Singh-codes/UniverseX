@@ -125,7 +125,7 @@ export function SolarSystemScene({
 
   // Camera target for planet focus
   const cameraTarget = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0))
-  const cameraPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 35, 90))
+  const cameraPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 50, 140))
 
   // Animated spawn scale — spring from 0 to target
   const animatedScaleRef = useRef(0.001)
@@ -160,7 +160,7 @@ export function SolarSystemScene({
       }
     } else {
       cameraTarget.current.set(0, 0, 0)
-      cameraPos.current.set(0, 35, 90)
+      cameraPos.current.set(0, 50, 140)
     }
 
     camera.position.lerp(cameraPos.current, 0.03)
