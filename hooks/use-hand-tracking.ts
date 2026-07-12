@@ -1,220 +1,150 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react'
-import type { GestureState, HandData, HandLandmark } from '@/lib/types'
+import type { GestureState, HandData, HandLandmark, GestureType, CameraStatus, ModelStatus } from '@/lib/types'
 import { smoothLandmarks } from '@/lib/hand-tracker'
-import {
-  detectGesture,
-  getPinchPoint,
-  getPinchDistance,
-  getHandRotation,
-  getTrackingQuality,
-} from '@/lib/gesture-detector'
-import { getPalmCenter } from '@/lib/hand-tracker'
+import { classifyHand, getIndexPoint } from '@/lib/gesture-detector'
 
-const WASM_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm'
+const WASM_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
 
 const DEFAULT_GESTURE_STATE: GestureState = {
-  gesture: 'none',
-  hands: [],
-  palmCenter: null,
-  pinchPoint: null,
-  pinchDistance: 0,
-  handRotation: 0,
-  isTracking: false,
-  trackingQuality: 0,
+  gesture: 'none', leftGesture: 'none', rightGesture: 'none', hands: [], rightIndex: null,
+  palmCenter: null, pinchPoint: null, pinchDistance: 0, handRotation: 0, isTracking: false, trackingQuality: 0,
 }
 
 export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const [gestureState, setGestureState] = useState<GestureState>(DEFAULT_GESTURE_STATE)
-  const [isReady, setIsReady] = useState(false)
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle')
+  const [modelStatus, setModelStatus] = useState<ModelStatus>('loading')
   const [error, setError] = useState<string | null>(null)
-
-  const landmarkerRef = useRef<unknown>(null)
-  const prevLandmarksRef = useRef<HandLandmark[][] | null[]>([null, null])
-  const animFrameRef = useRef<number>(0)
+  const landmarkerRef = useRef<any>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const prevLandmarksRef = useRef<Record<string, HandLandmark[] | null>>({ Left: null, Right: null })
+  const historiesRef = useRef<Record<string, GestureType[]>>({ Left: [], Right: [] })
+  const animationRef = useRef(0)
   const lastVideoTimeRef = useRef(-1)
-  const gestureHistoryRef = useRef<string[]>([])
-  const pendingStartRef = useRef(false)
-  const HISTORY_SIZE = 5
+  const requestedRef = useRef(false)
 
-  const getStableGesture = useCallback((newGesture: string): string => {
-    gestureHistoryRef.current.push(newGesture)
-    if (gestureHistoryRef.current.length > HISTORY_SIZE) {
-      gestureHistoryRef.current.shift()
-    }
-    const counts: Record<string, number> = {}
-    for (const g of gestureHistoryRef.current) {
-      counts[g] = (counts[g] ?? 0) + 1
-    }
-    let maxCount = 0
-    let stableGesture = newGesture
-    for (const [g, count] of Object.entries(counts)) {
-      if (count > maxCount) {
-        maxCount = count
-        stableGesture = g
-      }
-    }
-    return stableGesture
+  const stabilize = useCallback((side: 'Left' | 'Right', next: GestureType) => {
+    const history = historiesRef.current[side]
+    history.push(next)
+    if (history.length > 5) history.shift()
+    const counts = history.reduce<Record<string, number>>((acc, item) => ({ ...acc, [item]: (acc[item] ?? 0) + 1 }), {})
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] as GestureType ?? 'none'
   }, [])
+
+  const runDetection = useCallback(() => {
+    const video = videoRef.current
+    const landmarker = landmarkerRef.current
+    if (!video || !landmarker || !streamRef.current) return
+
+    const frame = () => {
+      if (!streamRef.current) return
+      if (video.readyState >= 2 && video.currentTime !== lastVideoTimeRef.current) {
+        lastVideoTimeRef.current = video.currentTime
+        try {
+          const result = landmarker.detectForVideo(video, performance.now())
+          const hands: HandData[] = []
+          for (let i = 0; i < Math.min(result.landmarks?.length ?? 0, 2); i++) {
+            const category = result.handednesses?.[i]?.[0]
+            // The preview is mirrored; MediaPipe's label still describes the physical hand.
+            const handedness = (category?.categoryName === 'Left' ? 'Left' : 'Right') as 'Left' | 'Right'
+            const smoothed = smoothLandmarks(prevLandmarksRef.current[handedness], result.landmarks[i], 0.5)
+            prevLandmarksRef.current[handedness] = smoothed
+            const gesture = stabilize(handedness, classifyHand({ landmarks: smoothed }))
+            hands.push({ landmarks: smoothed, handedness, score: category?.score ?? 0, gesture })
+          }
+          const left = hands.find((hand) => hand.handedness === 'Left')
+          const right = hands.find((hand) => hand.handedness === 'Right')
+          const leftGesture = left?.gesture ?? 'none'
+          const rightGesture = right?.gesture ?? 'none'
+          setGestureState({
+            ...DEFAULT_GESTURE_STATE,
+            gesture: rightGesture !== 'none' ? rightGesture : leftGesture,
+            leftGesture,
+            rightGesture,
+            hands,
+            rightIndex: right?.gesture === 'point' ? getIndexPoint(right.landmarks) : null,
+            isTracking: hands.length > 0,
+            trackingQuality: hands.length ? hands.reduce((sum, hand) => sum + hand.score, 0) / hands.length : 0,
+          })
+        } catch {
+          // A dropped inference frame is harmless; the next animation frame recovers.
+        }
+      }
+      animationRef.current = requestAnimationFrame(frame)
+    }
+    cancelAnimationFrame(animationRef.current)
+    animationRef.current = requestAnimationFrame(frame)
+  }, [stabilize, videoRef])
+
+  const startCamera = useCallback(async () => {
+    const video = videoRef.current
+    if (!video || streamRef.current) return
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraStatus('unavailable')
+      setError('Camera access is not supported in this browser.')
+      return
+    }
+    setCameraStatus('requesting')
+    setError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false })
+      streamRef.current = stream
+      video.srcObject = stream
+      await video.play()
+      setCameraStatus('live')
+      if (landmarkerRef.current) runDetection()
+    } catch (reason) {
+      console.error('[v0] Camera permission error:', reason)
+      setCameraStatus('denied')
+      setError('Camera permission was blocked. Allow camera access in the browser, then try again.')
+    }
+  }, [runDetection, videoRef])
 
   useEffect(() => {
     let cancelled = false
-
-    async function init() {
+    async function initializeModel() {
       try {
         const { HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision')
         const vision = await FilesetResolver.forVisionTasks(WASM_CDN)
         const landmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: MODEL_URL,
-            delegate: 'GPU',
-          },
-          numHands: 2,
-          runningMode: 'VIDEO',
-          minHandDetectionConfidence: 0.5,
-          minHandPresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
+          baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' }, runningMode: 'VIDEO', numHands: 2,
+          minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
         })
-
         if (!cancelled) {
           landmarkerRef.current = landmarker
-          setIsReady(true)
-          // pendingStartRef is checked by startTracking via a separate effect below
+          setModelStatus('ready')
+          if (streamRef.current) runDetection()
         }
-      } catch (err) {
-        console.error('[v0] HandLandmarker init error:', err)
-        if (!cancelled) setError('Hand tracking unavailable')
+      } catch (reason) {
+        console.error('[v0] Hand model error:', reason)
+        if (!cancelled) { setModelStatus('error'); setError('The hand-tracking model could not load.') }
       }
     }
-
-    init()
+    initializeModel()
     return () => { cancelled = true }
-  }, [])
+  }, [runDetection])
 
-  // When the model finishes loading, auto-start if the user already clicked
-  useEffect(() => {
-    if (isReady && pendingStartRef.current) {
-      pendingStartRef.current = false
-      startCameraAndDetect()
-    }
-  // startCameraAndDetect is stable, isReady is the trigger
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady])
-
-  const startCameraAndDetect = useCallback(async () => {
-    const video = videoRef.current
-    if (!video || !landmarkerRef.current) return
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
-      })
-      video.srcObject = stream
-      await video.play()
-    } catch (err) {
-      console.error('[v0] Camera access error:', err)
-      setError('Camera access denied. Please allow camera permission and reload.')
-      return
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const landmarker = landmarkerRef.current as any
-
-    const detect = () => {
-      const video = videoRef.current
-      if (!video || video.readyState < 2) {
-        animFrameRef.current = requestAnimationFrame(detect)
-        return
-      }
-
-      if (video.currentTime === lastVideoTimeRef.current) {
-        animFrameRef.current = requestAnimationFrame(detect)
-        return
-      }
-      lastVideoTimeRef.current = video.currentTime
-
-      try {
-        const result = landmarker.detectForVideo(video, performance.now())
-        const rawHands: HandData[] = []
-
-        if (result.landmarks && result.landmarks.length > 0) {
-          for (let i = 0; i < result.landmarks.length; i++) {
-            const rawLm = result.landmarks[i] as HandLandmark[]
-            const smoothed = smoothLandmarks(prevLandmarksRef.current[i] ?? null, rawLm, 0.4)
-            prevLandmarksRef.current[i] = smoothed
-
-            rawHands.push({
-              landmarks: smoothed,
-              handedness: result.handedness?.[i]?.[0]?.categoryName as 'Left' | 'Right' ?? 'Right',
-              score: result.handedness?.[i]?.[0]?.score ?? 0.8,
-            })
-          }
-        } else {
-          prevLandmarksRef.current = [null, null]
-        }
-
-        const rawGesture = detectGesture(rawHands)
-        const stableGesture = getStableGesture(rawGesture)
-
-        const primaryHand = rawHands[0]
-        const palmCenter = primaryHand
-          ? (() => {
-              const c = getPalmCenter(primaryHand.landmarks)
-              return { x: c.x, y: c.y }
-            })()
-          : null
-
-        const pinchPoint =
-          primaryHand && (stableGesture === 'pinch' || stableGesture === 'two_hand_pinch')
-            ? getPinchPoint(primaryHand.landmarks)
-            : null
-
-        const pinchDistance = getPinchDistance(rawHands)
-        const handRotation = primaryHand ? getHandRotation(primaryHand.landmarks) : 0
-        const trackingQuality = getTrackingQuality(rawHands)
-
-        setGestureState({
-          gesture: stableGesture as GestureState['gesture'],
-          hands: rawHands,
-          palmCenter,
-          pinchPoint,
-          pinchDistance,
-          handRotation,
-          isTracking: rawHands.length > 0,
-          trackingQuality,
-        })
-      } catch {
-        // ignore frame errors
-      }
-
-      animFrameRef.current = requestAnimationFrame(detect)
-    }
-
-    animFrameRef.current = requestAnimationFrame(detect)
-  }, [videoRef, getStableGesture])
-
-  // Public API: if landmarker is ready, start immediately; otherwise queue it
   const startTracking = useCallback(async () => {
-    if (landmarkerRef.current) {
-      await startCameraAndDetect()
-    } else {
-      pendingStartRef.current = true
-    }
-  }, [startCameraAndDetect])
+    requestedRef.current = true
+    await startCamera()
+  }, [startCamera])
 
   const stopTracking = useCallback(() => {
-    cancelAnimationFrame(animFrameRef.current)
-    pendingStartRef.current = false
-    const video = videoRef.current
-    if (video?.srcObject) {
-      const tracks = (video.srcObject as MediaStream).getTracks()
-      tracks.forEach((t) => t.stop())
-      video.srcObject = null
-    }
+    cancelAnimationFrame(animationRef.current)
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    if (videoRef.current) videoRef.current.srcObject = null
+    setCameraStatus('idle')
     setGestureState(DEFAULT_GESTURE_STATE)
   }, [videoRef])
 
-  return { gestureState, isReady, error, startTracking, stopTracking }
+  useEffect(() => () => {
+    cancelAnimationFrame(animationRef.current)
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+  }, [])
+
+  return { gestureState, cameraStatus, modelStatus, error, startTracking, stopTracking }
 }

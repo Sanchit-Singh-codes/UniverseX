@@ -16,6 +16,7 @@ export const PLANETS: PlanetData[] = [
     distanceFromSun: '57.9M km',
     dayLength: '1,408 hours',
     yearLength: '88 days',
+    diameter: '4,879 km', gravity: '3.7 m/s²', orbitalPeriod: '88 days', moonCount: '0', fact: 'Mercury has no atmosphere.',
   },
   {
     id: 'venus',
@@ -33,6 +34,7 @@ export const PLANETS: PlanetData[] = [
     distanceFromSun: '108.2M km',
     dayLength: '5,832 hours',
     yearLength: '225 days',
+    diameter: '12,104 km', gravity: '8.9 m/s²', orbitalPeriod: '225 days', moonCount: '0', fact: 'Venus rotates backward (retrograde).',
   },
   {
     id: 'earth',
@@ -51,6 +53,7 @@ export const PLANETS: PlanetData[] = [
     distanceFromSun: '149.6M km',
     dayLength: '24 hours',
     yearLength: '365 days',
+    diameter: '12,742 km', gravity: '9.8 m/s²', orbitalPeriod: '365.25 days', moonCount: '1', fact: 'Earth is 71% water.',
   },
   {
     id: 'mars',
@@ -68,6 +71,7 @@ export const PLANETS: PlanetData[] = [
     distanceFromSun: '227.9M km',
     dayLength: '24.6 hours',
     yearLength: '687 days',
+    diameter: '6,779 km', gravity: '3.7 m/s²', orbitalPeriod: '687 days', moonCount: '2', fact: 'Mars has the largest volcano in the solar system.',
   },
   {
     id: 'jupiter',
@@ -84,6 +88,7 @@ export const PLANETS: PlanetData[] = [
     distanceFromSun: '778.5M km',
     dayLength: '9.9 hours',
     yearLength: '12 years',
+    diameter: '139,820 km', gravity: '24.8 m/s²', orbitalPeriod: '12 years', moonCount: '95', fact: 'Jupiter has a massive storm called the Great Red Spot.',
   },
   {
     id: 'saturn',
@@ -101,6 +106,7 @@ export const PLANETS: PlanetData[] = [
     distanceFromSun: '1.43B km',
     dayLength: '10.7 hours',
     yearLength: '29 years',
+    diameter: '116,460 km', gravity: '10.4 m/s²', orbitalPeriod: '29 years', moonCount: '146', fact: 'Saturn could float on water due to its low density.',
   },
   {
     id: 'uranus',
@@ -118,6 +124,7 @@ export const PLANETS: PlanetData[] = [
     distanceFromSun: '2.87B km',
     dayLength: '17.2 hours',
     yearLength: '84 years',
+    diameter: '50,724 km', gravity: '8.7 m/s²', orbitalPeriod: '84 years', moonCount: '28', fact: 'Uranus rotates on its side.',
   },
   {
     id: 'neptune',
@@ -135,6 +142,7 @@ export const PLANETS: PlanetData[] = [
     distanceFromSun: '4.5B km',
     dayLength: '16.1 hours',
     yearLength: '165 years',
+    diameter: '49,244 km', gravity: '11.2 m/s²', orbitalPeriod: '165 years', moonCount: '16', fact: 'Neptune has the fastest winds in the solar system.',
   },
 ]
 

@@ -1,11 +1,4 @@
-export type GestureType =
-  | 'none'
-  | 'open_palm'
-  | 'point'
-  | 'pinch'
-  | 'fist'
-  | 'two_hand_pinch'
-  | 'rotate'
+export type GestureType = 'none' | 'open_palm' | 'closed_palm' | 'point'
 
 export interface HandLandmark {
   x: number
@@ -17,18 +10,25 @@ export interface HandData {
   landmarks: HandLandmark[]
   handedness: 'Left' | 'Right'
   score: number
+  gesture: GestureType
 }
 
 export interface GestureState {
   gesture: GestureType
+  leftGesture: GestureType
+  rightGesture: GestureType
   hands: HandData[]
+  rightIndex: { x: number; y: number } | null
   palmCenter: { x: number; y: number } | null
   pinchPoint: { x: number; y: number } | null
   pinchDistance: number
   handRotation: number
   isTracking: boolean
-  trackingQuality: number // 0-1
+  trackingQuality: number
 }
+
+export type CameraStatus = 'idle' | 'requesting' | 'live' | 'denied' | 'unavailable'
+export type ModelStatus = 'loading' | 'ready' | 'error'
 
 export interface PlanetData {
   id: string
@@ -48,6 +48,11 @@ export interface PlanetData {
   distanceFromSun?: string
   dayLength?: string
   yearLength?: string
+  diameter?: string
+  gravity?: string
+  orbitalPeriod?: string
+  moonCount?: string
+  fact?: string
 }
 
 export interface SolarSystemState {
