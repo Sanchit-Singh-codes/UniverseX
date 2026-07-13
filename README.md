@@ -7,10 +7,13 @@
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-Tracking-blue?style=for-the-badge&logo=google&logoColor=white)](https://google.github.io/mediapipe/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Watch Demo](https://img.shields.io/badge/Watch%20Demo-Instagram%20Reel-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://www.instagram.com/reel/DavBOYWTfOn/)
 
 ### *A gesture-controlled, photorealistic 3D Solar System simulator. Point at planets to fly to them, pinch to zoom, and scale the cosmos with your bare hands.*
 
-<img src="./public/universex_banner.jpg" width="100%" alt="UniverseX - Gesture-Controlled Solar System" style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); margin: 20px 0;"/>
+<a href="https://www.instagram.com/reel/DavBOYWTfOn/" target="_blank">
+  <img src="./public/instagram_reel_preview.jpg" width="100%" alt="UniverseX - Gesture-Controlled Solar System (Watch Demo Reel)" style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); margin: 20px 0;"/>
+</a>
 
 </div>
 
