@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Maximize2, Settings, Wifi, WifiOff } from 'lucide-react'
+import { Maximize2, Settings, Wifi, WifiOff, Instagram } from 'lucide-react'
 
 interface TopNavProps {
   fps: number
@@ -9,9 +9,10 @@ interface TopNavProps {
   trackingQuality: number
   onFullscreen: () => void
   onSettings: () => void
+  onWatchDemo: () => void
 }
 
-export function TopNav({ fps, isTracking, trackingQuality, onFullscreen, onSettings }: TopNavProps) {
+export function TopNav({ fps, isTracking, trackingQuality, onFullscreen, onSettings, onWatchDemo }: TopNavProps) {
   const qualityPercent = Math.round(trackingQuality * 100)
   const fpsColor = fps >= 50 ? '#00f5aa' : fps >= 30 ? '#ffcc00' : '#ff4444'
 
@@ -65,15 +66,23 @@ export function TopNav({ fps, isTracking, trackingQuality, onFullscreen, onSetti
       {/* Controls */}
       <div className="flex items-center gap-2">
         <button
+          onClick={onWatchDemo}
+          className="glass rounded-lg p-2.5 hover:bg-pink-500/10 transition-colors group flex items-center gap-1.5 cursor-pointer"
+          title="Watch Tutorial Story"
+        >
+          <Instagram size={16} className="text-pink-500 animate-pulse group-hover:scale-110 transition-transform" />
+          <span className="text-[9px] font-mono text-gray-400 group-hover:text-white transition-colors hidden sm:inline uppercase tracking-wider">Demo Story</span>
+        </button>
+        <button
           onClick={onSettings}
-          className="glass rounded-lg p-2.5 hover:bg-cyan-500/10 transition-colors group"
+          className="glass rounded-lg p-2.5 hover:bg-cyan-500/10 transition-colors group cursor-pointer"
           aria-label="Settings"
         >
           <Settings size={16} className="text-gray-400 group-hover:text-cyan-400 transition-colors" />
         </button>
         <button
           onClick={onFullscreen}
-          className="glass rounded-lg p-2.5 hover:bg-cyan-500/10 transition-colors group"
+          className="glass rounded-lg p-2.5 hover:bg-cyan-500/10 transition-colors group cursor-pointer"
           aria-label="Toggle fullscreen"
         >
           <Maximize2 size={16} className="text-gray-400 group-hover:text-cyan-400 transition-colors" />

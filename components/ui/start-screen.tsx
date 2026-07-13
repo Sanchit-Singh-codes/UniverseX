@@ -1,15 +1,16 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera, Loader2, Instagram } from 'lucide-react'
 
 interface StartScreenProps {
   isLoading: boolean
   onStart: () => void
   error: string | null
+  onWatchDemo: () => void
 }
 
-export function StartScreen({ isLoading, onStart, error }: StartScreenProps) {
+export function StartScreen({ isLoading, onStart, error, onWatchDemo }: StartScreenProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -99,6 +100,19 @@ export function StartScreen({ isLoading, onStart, error }: StartScreenProps) {
               ENABLE HAND TRACKING
             </>
           )}
+        </motion.button>
+
+        <motion.button
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onWatchDemo}
+          className="w-full mt-3 flex items-center justify-center gap-3 py-3.5 rounded-2xl font-mono text-xs font-bold tracking-wider transition-all duration-300 border border-white/10 text-gray-400 hover:text-white hover:border-cyan-400/30 hover:bg-cyan-950/10 cursor-pointer"
+        >
+          <Instagram size={14} className="text-pink-500 animate-pulse" />
+          WATCH DEMO (INSTA STORY)
         </motion.button>
 
         <motion.p

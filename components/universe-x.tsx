@@ -9,6 +9,7 @@ import { TopNav } from './ui/top-nav'
 import { HUD } from './ui/hud'
 import { GestureGuide } from './ui/gesture-guide'
 import { StartScreen } from './ui/start-screen'
+import { StoryDemo } from './ui/story-demo'
 import { GestureToast } from './ui/gesture-toast'
 import { PlanetInfoOverlay } from './ui/planet-info-overlay'
 import { useHandTracking } from '@/hooks/use-hand-tracking'
@@ -32,6 +33,7 @@ const INITIAL_SOLAR_SYSTEM: SolarSystemState = {
 export default function UniverseX() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [hasStarted, setHasStarted] = useState(false)
+  const [isDemoOpen, setIsDemoOpen] = useState(false)
   const [solarSystem, setSolarSystem] = useState<SolarSystemState>(INITIAL_SOLAR_SYSTEM)
   const fps = useFPS()
 
@@ -131,6 +133,7 @@ export default function UniverseX() {
             isLoading={hasStarted && modelStatus === 'loading'}
             onStart={handleStart}
             error={error}
+            onWatchDemo={() => setIsDemoOpen(true)}
           />
         )}
       </AnimatePresence>
@@ -144,6 +147,7 @@ export default function UniverseX() {
             trackingQuality={gestureState.trackingQuality}
             onFullscreen={handleFullscreen}
             onSettings={() => {}}
+            onWatchDemo={() => setIsDemoOpen(true)}
           />
 
           {/* Bottom HUD */}
@@ -201,6 +205,9 @@ export default function UniverseX() {
           </AnimatePresence>
         </>
       )}
+
+      {/* Story Demo Popup */}
+      <StoryDemo isOpen={isDemoOpen} onClose={() => setIsDemoOpen(false)} />
     </div>
   )
 }
